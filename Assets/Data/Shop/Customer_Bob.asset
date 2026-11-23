@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2be9535df9fadce4d9fc0e46ba83a908, type: 3}
+  m_Name: Customer_Bob
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Shop.CustomerData
+  displayName: Bob
+  prefab: {fileID: 4323961883916260933, guid: d6ffc5b8b9daaf14ba2f682b4c4440b6, type: 3}
+  weatherWord: rain
+  correctMapId: rainforest
+  problemLine: My garden's gone bone-dry and nothing will grow. Got anything that'll
+    make it lush and green again?
+  hintsVague:
+  - My plants look up at the sky every morning, waiting for a drink that never comes.
+  - Even my watering can gave up. The whole garden needs a good soaking from above.
+  - The soil cracks when I step on it. Everything in this town is dry as a biscuit.
+  hintsNarrow:
+  - My grandpa grew up somewhere so damp his clothes never dried and the trees grew
+    taller than houses.
+  - He said you could hear frogs sing from dawn until dusk, and moss grew on everything,
+    even the roofs.
+  - Where he lived, the air felt like a warm towel, and the leaves were as big as
+    umbrellas.
+  hintsClear:
+  - He said the sky opened up like a bucket every day at three.
+  - Look for the place with a tall, thundering white ribbon of water pouring off
+    a cliff.
+  - It's the greenest corner of your map, with giant leaves and a river snaking through.
+  - Grandpa's postcard showed palm trees, a roaring waterfall and a sky full of grey
+    clouds. That's the place!
+  thankYouLine: Rain at last! My garden will be lush and green again. Thank you!

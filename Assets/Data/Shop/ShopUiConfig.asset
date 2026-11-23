@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef90c3dbd1d9a1b4cae9e368dfdcda13, type: 3}
+  m_Name: ShopUiConfig
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Shop.ShopUiConfig
+  slideInSeconds: 1.2
+  slideOutSeconds: 1.2
+  hopSeconds: 0.6
+  hopCount: 2
+  hopHeight: 0.18
+  bobAmplitude: 0.015
+  bobFrequency: 0.6
+  slideWaddleHeight: 0.04
+  slideWaddleFrequency: 3
+  typewriterSecondsPerChar: 0.03
+  hoverScale: 1.06
+  hoverTint: {r: 1.25, g: 1.18, b: 1, a: 1}
+  hoverEaseSpeed: 10
+  loadingRunSpeed: 1
+  titleSceneName: Title

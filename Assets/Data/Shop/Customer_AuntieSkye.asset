@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2be9535df9fadce4d9fc0e46ba83a908, type: 3}
+  m_Name: Customer_AuntieSkye
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Shop.CustomerData
+  displayName: Auntie Skye
+  prefab: {fileID: 8903712006284065097, guid: d604a53a55a0d7848aac5a5c56441e37, type: 3}
+  weatherWord: sun
+  correctMapId: desert
+  problemLine: My laundry's been soaking wet for three whole days! Do you know how
+    hard that makes my life?
+  hintsVague:
+  - If only something warm and bright would beam down on my clothesline for a few
+    hours.
+  - Three days of grey drizzle and my socks still squelch. I'd give anything for
+    some toasty weather.
+  - Even my towels have started growing little green fuzzies. Ew!
+  hintsNarrow:
+  - I'd love a place so hot and dry that a puddle vanishes before you can step in
+    it.
+  - A friend told me about somewhere that hasn't seen a cloud in years. Their laundry
+    dries before they finish hanging it!
+  - Lizards nap on the rocks there, and the ground is so warm you could bake bread
+    on it.
+  hintsClear:
+  - Somewhere the clouds forget to visit, where the heat and dust have carved stones
+    into giant arches.
+  - Look for the big stone arch standing alone in the orange land on your map.
+  - Golden hills, spiky green plants with pink flowers, and a sky that's always blue.
+    That's what my friend described.
+  - The brightest, driest corner of your map. That's where my laundry's dream lives!
+  thankYouLine: Sunshine in a bottle! My laundry will be dry by lunchtime. You're
+    a lifesaver!

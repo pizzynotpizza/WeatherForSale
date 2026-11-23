@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2be9535df9fadce4d9fc0e46ba83a908, type: 3}
+  m_Name: Customer_Sprout
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Shop.CustomerData
+  displayName: Sprout
+  prefab: {fileID: 769049279164885057, guid: 50f81f913ffd7854eb0fd114a12b934c, type: 3}
+  weatherWord: wind
+  correctMapId: valley
+  problemLine: My kite just won't fly! I need something to lift it back up into the
+    sky!
+  hintsVague:
+  - The air here is so still, my kite just flops on the grass.
+  - I ran all the way down the street and it still wouldn't lift. It needs something
+    to push it up!
+  - Even the flags in town hang down like wet socks. Nothing moves at all.
+  hintsNarrow:
+  - Grandpa says there's a place where tall orange rocks stand in rows, and the air
+    rushes between them so hard your hat flies off.
+  - He says the air squeezes through the gaps between the cliffs there and comes
+    out whistling like a kettle.
+  - His kite once flew so high there it took him a whole afternoon to reel it back
+    in!
+  hintsClear:
+  - Look for tall orange rock towers with little trees on top, standing over a deep
+    drop full of clouds.
+  - On your map there are white swirly lines curling between the cliffs. That's air
+    that never sits still!
+  - Grandpa says you can't even see the bottom there, just soft fluffy mist far below
+    the rock towers.
+  - On your map it's the bottom-left corner, with flat-topped stone towers and twisting
+    white streaks.
+  thankYouLine: Whoosh! Look at my kite go! Thank you so much!
