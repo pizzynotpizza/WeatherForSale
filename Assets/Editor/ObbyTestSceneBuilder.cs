@@ -8,7 +8,10 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using WeatherForSale.Core;
 using WeatherForSale.Obby;
+using WeatherForSale.Shop;
+using WeatherForSale.Suction;
 using WeatherForSale.UI;
 
 namespace WeatherForSale.EditorTools
@@ -47,6 +50,24 @@ namespace WeatherForSale.EditorTools
         private static readonly Color FinishColor = new Color(0.90f, 0.20f, 0.80f);
         private static readonly Color PlayerColor = new Color(1.00f, 0.45f, 0.10f);
 
+        // Story 003 loop assets (shared with ShopSceneBuilder / SuctionStageBuilder).
+        private const string ShopSessionPath = "Assets/Data/Shop/ShopSession.asset";
+        private const string MapCatalogPath = "Assets/Data/Shop/MapCatalog.asset";
+        private const string LoopConfigPath = "Assets/Data/GameLoopConfig.asset";
+        private const string SuctionStringsPath = "Assets/Data/Suction/SuctionStrings.asset";
+
+        /// <summary>The separate suction scene of the first story-003 version; suction now happens in place at the end of level 2.</summary>
+        private const string RetiredSuctionScenePath = "Assets/Scenes/Suction.unity";
+
+        /// <summary>Where Sam stands for the suction: on the finish pad, this far before its centre (the flag pole), metres.</summary>
+        private const float SuctionSpotBeforeFinish = 1.2f;
+
+        /// <summary>Sam faces back along the course (-Z) during suction, so the front camera looks past the finish flag.</summary>
+        private const float SuctionSpotYaw = 180f;
+
+        /// <summary>A new level-2 config starts at this fraction of the map's level-1 time limit (then tune in the asset).</summary>
+        private const float LevelTwoTimeFactor = 0.8f;
+
         /// <summary>Per-level look: scene, config and the climate colours.</summary>
         private struct ObbyTheme
         {
@@ -55,19 +76,47 @@ namespace WeatherForSale.EditorTools
             /// <summary>Top of the hazard slab, metres. Deep (e.g. -60) reads as a bottomless chasm;
             /// the config kill height still respawns the player long before they reach it.</summary>
             public float HazardTopY;
+            /// <summary>1-based level of a map scene (0 = the standalone test level, not part of the loop).</summary>
+            public int Level;
+            /// <summary>Mirror the layout left-right (level 2 reuses level 1's layout until story 004).</summary>
+            public bool MirrorX;
+            /// <summary>Config a new <see cref="ConfigPath"/> is copied from (null = the test level's).</summary>
+            public string SourceConfigPath;
+            /// <summary>Multiplier applied to levelTimeSeconds when the config is first created.</summary>
+            public float TimeFactor;
 
             public ObbyTheme(string id, string scenePath, string configPath, string hazardName,
-                Color platform, Color start, Color hazard, Color sky, Color ambient, Color sun, float hazardTopY = -6f)
+                Color platform, Color start, Color hazard, Color sky, Color ambient, Color sun, float hazardTopY = -6f, int level = 1)
             {
                 Id = id; ScenePath = scenePath; ConfigPath = configPath; HazardName = hazardName;
                 Platform = platform; Start = start; Hazard = hazard; Sky = sky; Ambient = ambient; Sun = sun;
                 HazardTopY = hazardTopY;
+                Level = level;
+                MirrorX = false;
+                SourceConfigPath = null;
+                TimeFactor = 1f;
+            }
+
+            /// <summary>Map id in MapCatalog ("Rainforest" -> "rainforest").</summary>
+            public string MapId => Id.ToLowerInvariant();
+
+            /// <summary>The same map's level 2: Obby_&lt;Map&gt;_2, mirrored layout, config copied from level 1 with a shorter time.</summary>
+            public ObbyTheme LevelTwo()
+            {
+                ObbyTheme two = this;
+                two.Level = 2;
+                two.ScenePath = ScenePath.Replace("_1.unity", "_2.unity");
+                two.ConfigPath = ConfigPath.Replace("_1.asset", "_2.asset");
+                two.SourceConfigPath = ConfigPath;
+                two.MirrorX = true;
+                two.TimeFactor = LevelTwoTimeFactor;
+                return two;
             }
         }
 
         private static readonly ObbyTheme TestTheme = new ObbyTheme("Test", "Assets/Scenes/Obby_Test.unity", ConfigPath, "Lava",
             new Color(0.72f, 0.74f, 0.80f), new Color(0.20f, 0.60f, 0.70f), new Color(0.90f, 0.15f, 0.10f),
-            new Color(0.53f, 0.78f, 0.95f), new Color(0.62f, 0.66f, 0.72f), Color.white);
+            new Color(0.53f, 0.78f, 0.95f), new Color(0.62f, 0.66f, 0.72f), Color.white, -6f, 0);
 
         // Scene names must match MapCatalog sceneName (ShopSceneBuilder.Maps).
         // Colours sampled from the user's map reference paintings (2026-11-23): Rainforest = mossy
@@ -136,10 +185,32 @@ namespace WeatherForSale.EditorTools
             BuildMaps();
         }
 
-        /// <summary>Builds every map's starter obby scene (also callable from batch mode).</summary>
+        /// <summary>
+        /// Builds both obby levels of every map (Obby_&lt;Map&gt;_1, then Obby_&lt;Map&gt;_2) with the
+        /// <see cref="WeatherForSale.Core.GameLoopController"/> wired in; each level 2 also gets the
+        /// in-place suction stage (<see cref="SuctionStageBuilder"/>). Also callable from batch mode.
+        /// New scenes are appended to the Build Settings (the Shop stays scene 0) and the retired
+        /// Suction scene is taken out of them.
+        /// </summary>
         public static void BuildMaps()
         {
             foreach (ObbyTheme theme in MapThemes) Build(theme);
+            foreach (ObbyTheme theme in MapThemes) Build(theme.LevelTwo());
+            RemoveFromBuildSettings(RetiredSuctionScenePath);
+        }
+
+        /// <summary>Batch-mode entry point for <see cref="BuildMaps"/> (<c>-executeMethod</c>). Exits non-zero on failure.</summary>
+        public static void BuildMapsFromCommandLine()
+        {
+            try
+            {
+                BuildMaps();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                EditorApplication.Exit(1);
+            }
         }
 
         /// <summary>Batch-mode entry point (<c>-executeMethod</c>). Exits non-zero on failure.</summary>
@@ -159,6 +230,8 @@ namespace WeatherForSale.EditorTools
         private static void Build(ObbyTheme theme)
         {
             EnsureFolder("Assets/Data");
+            EnsureFolder("Assets/Data/Shop");
+            EnsureFolder("Assets/Data/Suction");
             EnsureFolder("Assets/Scenes");
             EnsureFolder("Assets/Materials");
             EnsureFolder(MaterialFolder);
@@ -167,7 +240,8 @@ namespace WeatherForSale.EditorTools
             // otherwise the config and materials loaded before it become destroyed (null) objects.
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            ObbyLevelConfig config = GetOrCreateConfig(theme.ConfigPath);
+            ObbyLevelConfig config = GetOrCreateConfig(theme.ConfigPath, theme.SourceConfigPath, theme.TimeFactor);
+            float mirror = theme.MirrorX ? -1f : 1f;
 
             string prefix = theme.Id == TestTheme.Id ? "Obby_" : "Obby_" + theme.Id + "_";
             Material platformMat = GetOrCreateMaterial(prefix + "Platform", theme.Platform);
@@ -197,18 +271,20 @@ namespace WeatherForSale.EditorTools
 
             foreach (PlatformSpec spec in Stones)
             {
-                CreatePlatform(spec.Name, spec, platformMat, levelRoot.transform);
+                PlatformSpec placed = spec;
+                placed.X *= mirror; // level 2: same stones, mirrored left-right
+                CreatePlatform(spec.Name, placed, platformMat, levelRoot.transform);
             }
 
-            Checkpoint cp1 = CreateCheckpoint("Checkpoint_1", new PlatformSpec("Checkpoint_1", 12.5f, 1f, 15.5f, 5f, 5f), checkpointMat, levelRoot.transform);
+            Checkpoint cp1 = CreateCheckpoint("Checkpoint_1", new PlatformSpec("Checkpoint_1", 12.5f * mirror, 1f, 15.5f, 5f, 5f), checkpointMat, levelRoot.transform);
             Checkpoint cp2 = CreateCheckpoint("Checkpoint_2", new PlatformSpec("Checkpoint_2", 0f, 3f, 29.5f, 5f, 5f), checkpointMat, levelRoot.transform);
-            FinishTrigger finish = CreateFinish(new PlatformSpec("FinishPad", 9f, 5.5f, 46f, 5f, 5f), finishMat, whiteMat, levelRoot.transform);
+            FinishTrigger finish = CreateFinish(new PlatformSpec("FinishPad", 9f * mirror, 5.5f, 46f, 5f, 5f), finishMat, whiteMat, levelRoot.transform);
 
             // Hazard (lava on the test level; swamp, river, quicksand or ice water on the maps): a trigger slab well below the platforms (top at y = -6, extends past the config kill height).
             GameObject lava = GameObject.CreatePrimitive(PrimitiveType.Cube);
             lava.name = theme.HazardName + "_KillVolume";
             lava.transform.SetParent(levelRoot.transform, false);
-            lava.transform.position = new Vector3(5f, theme.HazardTopY - 5f, 25f);
+            lava.transform.position = new Vector3(5f * mirror, theme.HazardTopY - 5f, 25f);
             // A deep chasm floor must reach the horizon, or the sky shows below the platforms.
             float hazardSize = theme.HazardTopY < -20f ? 700f : 200f;
             lava.transform.localScale = new Vector3(hazardSize, 10f, hazardSize);
@@ -274,7 +350,43 @@ namespace WeatherForSale.EditorTools
             InputSystemUIInputModule uiModule = esGo.AddComponent<InputSystemUIInputModule>();
             if (uiModule.actionsAsset == null) uiModule.AssignDefaultActions();
 
-            BuildUi(manager, config, player, thirdPersonCamera);
+            bool inLoop = theme.Level > 0;
+            bool hasSuction = theme.Level >= 2; // the last level of a map ends with the in-place suction
+            ObbyUiRefs ui = BuildUi(manager, config, player, thirdPersonCamera, inLoop, hasSuction);
+            Button completeButton = hasSuction ? null : ui.CompleteButton;
+
+            // Story 003: map levels are part of the shop -> level 1 -> level 2 -> suction loop.
+            if (inLoop)
+            {
+                GameObject loopGo = new GameObject("GameLoop");
+                GameLoopController loop = loopGo.AddComponent<GameLoopController>();
+                SetRefs(loop,
+                    ("config", GetOrCreateAsset<GameLoopConfig>(LoopConfigPath)),
+                    ("session", GetOrCreateAsset<ShopSession>(ShopSessionPath)),
+                    ("catalog", LoadAssetOrWarn<MapCatalog>(MapCatalogPath)),
+                    ("strings", GetOrCreateAsset<SuctionStrings>(SuctionStringsPath)),
+                    ("level", manager),
+                    ("nextButton", completeButton),
+                    ("nextButtonLabel", completeButton != null ? completeButton.GetComponentInChildren<Text>(true) : null));
+                SetInt(loop, "levelIndex", theme.Level);
+                SetString(loop, "sceneMapId", theme.MapId);
+
+                if (hasSuction)
+                {
+                    SuctionStage stage = SuctionStageBuilder.Build(new SuctionStageBuilder.StageInputs
+                    {
+                        Canvas = ui.Canvas,
+                        SpotPosition = new Vector3(9f * mirror, 5.5f, 46f - SuctionSpotBeforeFinish), // FinishPad top
+                        SpotYaw = SuctionSpotYaw,
+                        Player = player,
+                        FollowCamera = thirdPersonCamera,
+                        ViewCamera = camGo.transform,
+                        Loop = loop,
+                        HideDuringSuction = ui.HideDuringSuction,
+                    });
+                    SetRefs(loop, ("suctionStage", stage));
+                }
+            }
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, theme.ScenePath);
@@ -352,7 +464,21 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ UI
 
-        private static void BuildUi(ObbyLevelManager manager, ObbyLevelConfig config, PlayerController player, ThirdPersonCamera cam)
+        /// <summary>Pieces of the obby UI the loop and the suction stage need.</summary>
+        private struct ObbyUiRefs
+        {
+            public Transform Canvas;
+            public Button CompleteButton;
+            public GameObject[] HideDuringSuction;
+        }
+
+        /// <summary>
+        /// Builds the HUD, touch controls and panels. When <paramref name="inLoop"/> is true the Level
+        /// Complete panel's button is left for the GameLoopController (Next) instead of the HUD's
+        /// restart. When <paramref name="hasSuction"/> is true the Level Complete panel is not shown at
+        /// all (the suction starts in place instead).
+        /// </summary>
+        private static ObbyUiRefs BuildUi(ObbyLevelManager manager, ObbyLevelConfig config, PlayerController player, ThirdPersonCamera cam, bool inLoop, bool hasSuction)
         {
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             Sprite panelSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
@@ -453,9 +579,16 @@ namespace WeatherForSale.EditorTools
                 ("fallsText", fallsText),
                 ("gameOverPanel", gameOver.gameObject),
                 ("gameOverRestartButton", goButton),
-                ("completePanel", complete.gameObject),
+                ("completePanel", hasSuction ? null : complete.gameObject),
                 ("completeSummaryText", cSummary),
-                ("completeRestartButton", cButton));
+                ("completeRestartButton", inLoop ? null : cButton));
+            if (inLoop) cButton.gameObject.name = "NextButton"; // label text is set at runtime from SuctionStrings
+            return new ObbyUiRefs
+            {
+                Canvas = canvasGo.transform,
+                CompleteButton = cButton,
+                HideDuringSuction = new[] { fallsText.gameObject, pad.gameObject }, // the timer stays: the suction runs on it
+            };
         }
 
         private static RectTransform CreateRect(string name, Transform parent)
@@ -667,16 +800,25 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ assets / settings
 
-        private static ObbyLevelConfig GetOrCreateConfig(string path)
+        private static ObbyLevelConfig GetOrCreateConfig(string path, string sourcePath, float timeFactor)
         {
             ObbyLevelConfig config = AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(path);
             if (config != null) return config; // keep designer tuning
 
-            // A map's first config starts as a copy of the tuned test level's (time, camera, movement).
-            if (path != ConfigPath && AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(ConfigPath) != null
-                && AssetDatabase.CopyAsset(ConfigPath, path))
+            // A map's first config starts as a copy of the tuned test level's (time, camera, movement);
+            // a level-2 config starts as a copy of its map's level 1 with a shorter time limit.
+            string source = string.IsNullOrEmpty(sourcePath) ? ConfigPath : sourcePath;
+            if (path != source && AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(source) != null
+                && AssetDatabase.CopyAsset(source, path))
             {
-                return AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(path);
+                ObbyLevelConfig copy = AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(path);
+                if (copy != null && !Mathf.Approximately(timeFactor, 1f))
+                {
+                    copy.levelTimeSeconds = Mathf.Max(1f, Mathf.Round(copy.levelTimeSeconds * timeFactor));
+                    EditorUtility.SetDirty(copy);
+                    AssetDatabase.SaveAssets();
+                }
+                return copy;
             }
 
             config = ScriptableObject.CreateInstance<ObbyLevelConfig>();
@@ -708,6 +850,12 @@ namespace WeatherForSale.EditorTools
             AssetDatabase.CreateFolder(path.Substring(0, slash), path.Substring(slash + 1));
         }
 
+        private static void RemoveFromBuildSettings(string scenePath)
+        {
+            var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+            if (scenes.RemoveAll(s => s.path == scenePath) > 0) EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
         private static void AddToBuildSettings(string scenePath)
         {
             var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
@@ -731,6 +879,40 @@ namespace WeatherForSale.EditorTools
                 }
                 prop.objectReferenceValue = value;
             }
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static T GetOrCreateAsset<T>(string path) where T : ScriptableObject
+        {
+            T asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (asset != null) return asset; // keep designer tuning
+            asset = ScriptableObject.CreateInstance<T>();
+            AssetDatabase.CreateAsset(asset, path);
+            return asset;
+        }
+
+        private static T LoadAssetOrWarn<T>(string path) where T : Object
+        {
+            T asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (asset == null) Debug.LogWarning("[ObbyTestSceneBuilder] " + path + " not found; run Build Shop Scene first.");
+            return asset;
+        }
+
+        private static void SetInt(Object target, string field, int value)
+        {
+            SerializedObject so = new SerializedObject(target);
+            SerializedProperty prop = so.FindProperty(field);
+            if (prop == null) { Debug.LogError("[ObbyTestSceneBuilder] Missing serialized field '" + field + "' on " + target.GetType().Name); return; }
+            prop.intValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetString(Object target, string field, string value)
+        {
+            SerializedObject so = new SerializedObject(target);
+            SerializedProperty prop = so.FindProperty(field);
+            if (prop == null) { Debug.LogError("[ObbyTestSceneBuilder] Missing serialized field '" + field + "' on " + target.GetType().Name); return; }
+            prop.stringValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

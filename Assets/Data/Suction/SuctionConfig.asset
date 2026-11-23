@@ -1,0 +1,91 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6ebc658eee19c546a8287e85026a5d0, type: 3}
+  m_Name: SuctionConfig
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Suction.SuctionConfig
+  gaugeMax: 100
+  amountPerPress: 3.5
+  decayPerSecond: 7
+  stepSize: 10
+  changeEverySeconds: 1.5
+  keys: 250000000f0000002100000012000000
+  inputMode: 0
+  tapButtonSize: 240
+  safeMarginSides: 140
+  safeMarginTop: 360
+  safeMarginBottom: 140
+  minJumpDistance: 300
+  panelInputDelaySeconds: 0.8
+  cameraLocalPosition: {x: 0.35, y: 0.65, z: 2.6}
+  cameraLookLocal: {x: -0.7, y: 0.9, z: 0.3}
+  cameraMoveSeconds: 0.8
+  bottleHoldDistance: 0.42
+  bottleHoldDrop: 0.04
+  bottleTiltToOrb: 0.6
+  bottleGripHeight: 0.1
+  bottleGripHalfWidth: 0.09
+  bottleLocalEuler: {x: 0, y: 0, z: 0}
+  bottleScale: 1.7
+  poseLeanBackDegrees: 12
+  poseLeanSideDegrees: 10
+  poseLegSpreadDegrees: 16
+  poseLegStrideDegrees: 18
+  poseShakeDegrees: 1.6
+  poseShakeHz: 9
+  poseHeaveDegrees: 16
+  poseHeaveHz: 1.1
+  poseYankDegrees: 10
+  poseYankFade: 7
+  poseBottlePull: 0.08
+  poseBodyShare: 0.65
+  poseBlendSeconds: 0.35
+  orbLocalPosition: {x: -1.1, y: 1.1, z: 0.9}
+  orbStartDiameter: 1.3
+  orbEndDiameter: 0.1
+  streakSurroundRadius: 2.4
+  streakSurroundRate: 22
+  streakOrbRate: 28
+  streakSpeed: 4.5
+  streakWidth: 0.03
+  streakMaxParticles: 60
+  defaultMap:
+    mapId: 
+    orbColor: {r: 0.35, g: 0.8, b: 0.75, a: 0.55}
+    streakColor: {r: 0.75, g: 1, b: 0.95, a: 0.85}
+    threeStarSeconds: 120
+    twoStarSeconds: 180
+    oneStarSeconds: 270
+  maps:
+  - mapId: rainforest
+    orbColor: {r: 0.3, g: 0.78, b: 0.62, a: 0.55}
+    streakColor: {r: 0.75, g: 1, b: 0.9, a: 0.85}
+    threeStarSeconds: 120
+    twoStarSeconds: 180
+    oneStarSeconds: 270
+  - mapId: valley
+    orbColor: {r: 0.85, g: 0.88, b: 1, a: 0.5}
+    streakColor: {r: 1, g: 1, b: 1, a: 0.85}
+    threeStarSeconds: 120
+    twoStarSeconds: 180
+    oneStarSeconds: 270
+  - mapId: desert
+    orbColor: {r: 1, g: 0.78, b: 0.3, a: 0.55}
+    streakColor: {r: 1, g: 0.93, b: 0.6, a: 0.85}
+    threeStarSeconds: 120
+    twoStarSeconds: 180
+    oneStarSeconds: 270
+  - mapId: glacier
+    orbColor: {r: 0.7, g: 0.88, b: 1, a: 0.55}
+    streakColor: {r: 0.9, g: 0.97, b: 1, a: 0.85}
+    threeStarSeconds: 120
+    twoStarSeconds: 180
+    oneStarSeconds: 270

@@ -21,6 +21,27 @@ namespace WeatherForSale.Shop
         [NonSerialized] private string chosenMapId;
         [NonSerialized] private bool returnedWithBottle;
 
+        // Run state for the current map trip (story 003): reset on every departure from the shop.
+        [NonSerialized] private int runLevelIndex;
+        [NonSerialized] private float runSeconds;
+        [NonSerialized] private int runDeaths;
+        [NonSerialized] private bool runShardCollected;
+
+        /// <summary>Obby level of the current run being played (1 or 2); 0 outside the obby levels.</summary>
+        public int RunLevelIndex => runLevelIndex;
+
+        /// <summary>Seconds used so far in this run (passed obby levels plus the suction minigame).</summary>
+        public float RunSeconds => runSeconds;
+
+        /// <summary>Falls/deaths in this run, across every attempt of every level.</summary>
+        public int RunDeaths => runDeaths;
+
+        /// <summary>True once this run's Key Item (purple Shard) was picked up. Placed in story 004.</summary>
+        public bool RunShardCollected => runShardCollected;
+
+        /// <summary>True while a map has been chosen and the bottle is not yet delivered.</summary>
+        public bool HasActiveRun => !string.IsNullOrEmpty(chosenMapId);
+
         /// <summary>Index into the CustomerRoster of the customer currently being served.</summary>
         public int CustomerIndex => customerIndex;
 
@@ -63,14 +84,48 @@ namespace WeatherForSale.Shop
             customerIndex = 0;
             chosenMapId = null;
             returnedWithBottle = false;
+            ResetRun();
         }
 
-        /// <summary>Records the right map choice just before the map scene loads.</summary>
+        /// <summary>Records the right map choice just before the map scene loads. Starts a fresh run.</summary>
         public void RecordDeparture(int customer, string mapId)
         {
             customerIndex = Mathf.Max(0, customer);
             chosenMapId = mapId;
             returnedWithBottle = false;
+            ResetRun();
+        }
+
+        /// <summary>Marks which obby level (1-based) of the run is being played; 0 = not in a level.</summary>
+        public void SetRunLevel(int levelIndex)
+        {
+            runLevelIndex = Mathf.Max(0, levelIndex);
+        }
+
+        /// <summary>Adds used seconds to the run total (negative values are ignored).</summary>
+        public void AddRunSeconds(float seconds)
+        {
+            if (seconds > 0f) runSeconds += seconds;
+        }
+
+        /// <summary>Adds falls/deaths to the run total (negative values are ignored).</summary>
+        public void AddRunDeaths(int deaths)
+        {
+            if (deaths > 0) runDeaths += deaths;
+        }
+
+        /// <summary>Records that this run's Key Item (Shard) was collected (story 004 calls this).</summary>
+        public void MarkShardCollected()
+        {
+            runShardCollected = true;
+        }
+
+        private void ResetRun()
+        {
+            runLevelIndex = 0;
+            runSeconds = 0f;
+            runDeaths = 0;
+            runShardCollected = false;
         }
 
         /// <summary>

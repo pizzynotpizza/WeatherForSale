@@ -23,6 +23,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Obby_Glacier_1.unity
     guid: 9c93de1d6136e5a468f793145bc2e7c5
+  - enabled: 1
+    path: Assets/Scenes/Obby_Rainforest_2.unity
+    guid: 368aa3a833f971d4aa1ca1904c3994b4
+  - enabled: 1
+    path: Assets/Scenes/Obby_Valley_2.unity
+    guid: 7b3fe9c36f7e93d42b3e63aff6606455
+  - enabled: 1
+    path: Assets/Scenes/Obby_Desert_2.unity
+    guid: 536075cea5428e34ab9aea8c79b5d16b
+  - enabled: 1
+    path: Assets/Scenes/Obby_Glacier_2.unity
+    guid: 3cd0d39722d2e294485d077c175ea0ed
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
