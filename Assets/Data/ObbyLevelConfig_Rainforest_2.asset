@@ -22,7 +22,7 @@ MonoBehaviour:
   coyoteTime: 0.1
   jumpBufferTime: 0.12
   groundedStickSpeed: 2
-  levelTimeSeconds: 144
+  levelTimeSeconds: 100
   lowTimeWarningSeconds: 30
   killHeight: -15
   respawnHeightOffset: 0.25

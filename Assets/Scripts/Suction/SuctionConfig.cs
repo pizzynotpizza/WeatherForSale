@@ -79,7 +79,7 @@ namespace WeatherForSale.Suction
         [Min(0f)] public float safeMarginSides = 140f;
 
         [Tooltip("Gap kept below the top edge (keeps the button clear of the title and gauge at the top), canvas units.")]
-        [Min(0f)] public float safeMarginTop = 360f;
+        [Min(0f)] public float safeMarginTop = 280f;
 
         [Tooltip("Gap kept above the bottom edge, canvas units.")]
         [Min(0f)] public float safeMarginBottom = 140f;
@@ -93,10 +93,10 @@ namespace WeatherForSale.Suction
 
         [Header("Stage camera (spot-local)")]
         [Tooltip("Camera position: in front of Sam, a little low and to his right.")]
-        public Vector3 cameraLocalPosition = new Vector3(0.35f, 0.65f, 2.6f);
+        public Vector3 cameraLocalPosition = new Vector3(1.25f, 0.95f, 3.0f);
 
         [Tooltip("Point the camera looks at. Shifted to the camera's right of Sam so Sam sits left of centre and the orb fits on the right.")]
-        public Vector3 cameraLookLocal = new Vector3(-0.7f, 0.9f, 0.3f);
+        public Vector3 cameraLookLocal = new Vector3(-0.1f, 1.05f, 0.2f);
 
         [Tooltip("Seconds the camera takes to swing from the follow view to the front view.")]
         [Min(0f)] public float cameraMoveSeconds = 0.8f;
@@ -131,10 +131,10 @@ namespace WeatherForSale.Suction
         public float poseLeanSideDegrees = 10f;
 
         [Tooltip("Each leg swings outward this much (wide stance), degrees.")]
-        public float poseLegSpreadDegrees = 16f;
+        public float poseLegSpreadDegrees = 14f;
 
         [Tooltip("Front leg forward, back leg back (braced stance), degrees.")]
-        public float poseLegStrideDegrees = 18f;
+        public float poseLegStrideDegrees = 30f;
 
         [Tooltip("Strain shake of the upper body, degrees.")]
         [Min(0f)] public float poseShakeDegrees = 1.6f;
@@ -163,9 +163,19 @@ namespace WeatherForSale.Suction
         [Tooltip("Seconds to blend from the idle pose into the pull.")]
         [Min(0.01f)] public float poseBlendSeconds = 0.35f;
 
+        [Header("Weather before the suction")]
+        [Tooltip("Show the weather floating at its place from the start of the level, so the player sees the goal.")]
+        public bool orbVisibleBeforeSuction = true;
+
+        [Tooltip("Up-and-down float of the waiting weather, metres.")]
+        [Min(0f)] public float orbIdleBob = 0.18f;
+
+        [Tooltip("Floats per second.")]
+        [Min(0f)] public float orbIdleBobHz = 0.45f;
+
         [Header("Weather orb (spot-local)")]
         [Tooltip("Orb centre: in front of Sam and to the camera's right.")]
-        public Vector3 orbLocalPosition = new Vector3(-1.1f, 1.1f, 0.9f);
+        public Vector3 orbLocalPosition = new Vector3(0f, 1.5f, 2.6f);
 
         [Tooltip("Orb diameter at an empty gauge, metres.")]
         [Min(0f)] public float orbStartDiameter = 1.3f;

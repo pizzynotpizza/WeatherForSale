@@ -5,11 +5,11 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Technology Stack
 
-- **Engine**: [CHOOSE: Web / Godot 4 / Unity / Unreal Engine 5]
-- **Language**: [CHOOSE: TypeScript / GDScript / C# / C++ / Blueprint]
+- **Engine**: Unity 6000.3.22f1 (Unity 6.3 LTS)
+- **Language**: C#
 - **Version Control**: Git with trunk-based development
-- **Build System**: [SPECIFY after choosing engine]
-- **Asset Pipeline**: [SPECIFY after choosing engine]
+- **Build System**: Unity Build Pipeline
+- **Asset Pipeline**: Unity Asset Import Pipeline + Addressables
 
 > **Note**: Engine-specialist agents exist for Godot, Unity, and Unreal with
 > dedicated sub-specialists. Use the set matching your engine.
@@ -26,6 +26,7 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
      @docs/engine-reference/<engine>/VERSION.md here for the chosen engine. Skills
      that need the pinned version read that file on demand either way. -->
 
+@docs/engine-reference/unity/VERSION.md
 
 ## Technical Preferences
 

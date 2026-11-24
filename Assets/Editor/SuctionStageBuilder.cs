@@ -29,6 +29,11 @@ namespace WeatherForSale.EditorTools
         private const string OrbMaterialPath = MaterialFolder + "/Suction_Orb.mat";
         private const string StreakMaterialPath = MaterialFolder + "/Suction_Streak.mat";
         private const string BottlePrefabPath = "Assets/Art/Props/Bottle/Bottle.prefab";
+        // The held bottle is open: the same model with the cork cut off (made once from the original).
+        private const string OpenBottlePrefabPath = "Assets/Art/Props/Bottle/Bottle_Open.prefab";
+        private const string OpenBottleMeshPath = "Assets/Art/Props/Bottle/Bottle_Open_Mesh.asset";
+        /// <summary>The cork is the top of the model: triangles above this fraction of its height (model +Z is up) are removed.</summary>
+        private const float CorkStartFraction = 0.875f;
 
         private const string Cozy = "Assets/Cozy_UI_Pack_doboui/";
         private const string WoodPanelPath = Cozy + "Containers/WoodenContainers/WoodenContainer1.png";
@@ -69,6 +74,8 @@ namespace WeatherForSale.EditorTools
             public Vector3 SpotPosition;
             /// <summary>Way Sam faces during suction, degrees.</summary>
             public float SpotYaw;
+            /// <summary>The scene's map id (colours the weather shown before the suction starts).</summary>
+            public string MapId;
             /// <summary>The player.</summary>
             public PlayerController Player;
             /// <summary>The follow camera component (disabled during suction).</summary>
@@ -93,7 +100,7 @@ namespace WeatherForSale.EditorTools
             SuctionStrings strings = GetOrCreateAsset<SuctionStrings>(StringsPath);
             Material orbMaterial = GetOrCreateOrbMaterial();
             Material streakMaterial = GetOrCreateStreakMaterial();
-            GameObject bottlePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BottlePrefabPath);
+            GameObject bottlePrefab = GetOrCreateOpenBottlePrefab();
             if (bottlePrefab == null) Debug.LogWarning("[SuctionStageBuilder] Bottle prefab not found: " + BottlePrefabPath);
 
             // --- 3D
@@ -129,6 +136,9 @@ namespace WeatherForSale.EditorTools
                 ("spot", spot.transform), ("bottlePrefab", bottlePrefab),
                 ("orb", orb.transform), ("orbRenderer", orbRenderer),
                 ("surroundStreaks", surround), ("orbStreaks", fromOrb));
+            var stageSo = new SerializedObject(stage);
+            stageSo.FindProperty("sceneMapId").stringValue = inputs.MapId ?? "";
+            stageSo.ApplyModifiedPropertiesWithoutUndo();
             SetRefArray(stage, "hideDuringSuction", inputs.HideDuringSuction ?? new GameObject[0]);
             return stage;
         }
@@ -208,9 +218,9 @@ namespace WeatherForSale.EditorTools
             promptOutline.effectColor = OutlineColor;
             promptOutline.effectDistance = new Vector2(3f, -3f);
 
-            // Title, top centre under the obby timer (which keeps counting during suction): "Collect the Weather!"
+            // Title, top centre: "Collect the Weather!"
             Text title = CreateText("Title", hud, font, strings.collectTitle, 84, TextAnchor.MiddleCenter, Color.white);
-            PlaceCorner(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(1400f, 120f));
+            PlaceCorner(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(1400f, 120f));
             title.fontStyle = FontStyle.Bold;
             Outline titleOutline = title.gameObject.AddComponent<Outline>();
             titleOutline.effectColor = OutlineColor;
@@ -218,7 +228,7 @@ namespace WeatherForSale.EditorTools
 
             // Gauge, top centre under the title, percent inside the bar
             RectTransform bar = CreateRect("GaugeBar", hud);
-            PlaceCorner(bar, new Vector2(0.5f, 1f), new Vector2(0f, -252f), new Vector2(720f, 72f));
+            PlaceCorner(bar, new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(720f, 72f));
             AddImage(bar, sprites.BarBackground, Color.white, true, false);
             RectTransform fillArea = CreateRect("FillArea", bar);
             Stretch(fillArea);
@@ -470,6 +480,49 @@ namespace WeatherForSale.EditorTools
         }
 
         /// <summary>URP Lit, transparent, glossy: the see-through weather orb. Its colour is set per map at runtime.</summary>
+        /// <summary>
+        /// The empty bottle Sam holds is open: a copy of Bottle.prefab whose mesh has the cork removed
+        /// (every triangle above <see cref="CorkStartFraction"/> of the model's height). The original model
+        /// and prefab are not changed. Returns the original when the copy cannot be made.
+        /// </summary>
+        private static GameObject GetOrCreateOpenBottlePrefab()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(OpenBottlePrefabPath);
+            if (existing != null) return existing;
+            var original = AssetDatabase.LoadAssetAtPath<GameObject>(BottlePrefabPath);
+            if (original == null) return null;
+            MeshFilter sourceFilter = original.GetComponentInChildren<MeshFilter>(true);
+            if (sourceFilter == null || sourceFilter.sharedMesh == null) return original;
+
+            Mesh source = sourceFilter.sharedMesh;
+            Vector3[] vertices = source.vertices;
+            int[] triangles = source.triangles;
+            float bottom = source.bounds.min.z, top = source.bounds.max.z;
+            float cut = bottom + (top - bottom) * CorkStartFraction;
+            var kept = new System.Collections.Generic.List<int>(triangles.Length);
+            for (int t = 0; t < triangles.Length; t += 3)
+            {
+                float centreZ = (vertices[triangles[t]].z + vertices[triangles[t + 1]].z + vertices[triangles[t + 2]].z) / 3f;
+                if (centreZ >= cut) continue; // cork
+                kept.Add(triangles[t]); kept.Add(triangles[t + 1]); kept.Add(triangles[t + 2]);
+            }
+
+            var open = Object.Instantiate(source);
+            open.name = "Bottle_Open";
+            open.subMeshCount = 1;
+            open.SetTriangles(kept, 0);
+            open.RecalculateBounds();
+            AssetDatabase.CreateAsset(open, OpenBottleMeshPath);
+
+            GameObject copy = (GameObject)PrefabUtility.InstantiatePrefab(original);
+            PrefabUtility.UnpackPrefabInstance(copy, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            copy.GetComponentInChildren<MeshFilter>(true).sharedMesh = open;
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(copy, OpenBottlePrefabPath);
+            Object.DestroyImmediate(copy);
+            Debug.Log("[SuctionStageBuilder] Made the open bottle (" + (triangles.Length - kept.Count) / 3 + " cork triangles removed): " + OpenBottlePrefabPath);
+            return saved != null ? saved : original;
+        }
+
         private static Material GetOrCreateOrbMaterial()
         {
             Material mat = GetOrCreateMaterial(OrbMaterialPath, "Universal Render Pipeline/Lit");

@@ -65,30 +65,6 @@ namespace WeatherForSale.Obby
         /// <summary>Seconds left on the level timer.</summary>
         public float RemainingSeconds => timer.Remaining;
 
-        /// <summary>True while the countdown keeps running after the level was completed (see <see cref="ContinueTimerAfterCompletion"/>).</summary>
-        public bool IsInOvertime => overtime;
-
-        private bool overtime;
-
-        /// <summary>
-        /// Restarts the stopped countdown after the level was completed, from the time that was left:
-        /// the suction at the end of a map's last level runs on it. Running out then ends the level in
-        /// GameOver (the usual Restart replays the level). Ignored unless the level is completed.
-        /// </summary>
-        public void ContinueTimerAfterCompletion()
-        {
-            if (State != ObbyLevelState.Completed || timer.HasExpired) return;
-            overtime = true;
-            timer.Start();
-        }
-
-        /// <summary>Stops the countdown started by <see cref="ContinueTimerAfterCompletion"/>, keeping the time left.</summary>
-        public void StopTimer()
-        {
-            overtime = false;
-            timer.Stop();
-        }
-
         private void Awake()
         {
             timer = new LevelTimer(config.levelTimeSeconds);
@@ -136,11 +112,6 @@ namespace WeatherForSale.Obby
 
         private void Update()
         {
-            if (overtime && State == ObbyLevelState.Completed)
-            {
-                timer.Tick(Time.deltaTime);
-                return;
-            }
             if (State != ObbyLevelState.Playing) return;
 
             timer.Tick(Time.deltaTime);
@@ -196,9 +167,7 @@ namespace WeatherForSale.Obby
 
         private void OnTimerExpired()
         {
-            bool inOvertime = overtime && State == ObbyLevelState.Completed;
-            if (State != ObbyLevelState.Playing && !inOvertime) return;
-            overtime = false;
+            if (State != ObbyLevelState.Playing) return;
             SetState(ObbyLevelState.GameOver);
         }
 

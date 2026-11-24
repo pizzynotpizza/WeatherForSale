@@ -1,0 +1,314 @@
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace WeatherForSale.Obby
+{
+    /// <summary>
+    /// Third-person character controller for the obby. Camera-relative walking and jumping on a
+    /// <see cref="CharacterController"/>. Reads keyboard / gamepad through the Input System and
+    /// also accepts virtual (touch) input through <see cref="SetVirtualMove"/> and
+    /// <see cref="RequestJump"/>, so touch and keyboard drive the very same controller.
+    /// Implements: design/game-brief.md Controls, story-001 criterion 1.
+    /// </summary>
+    [RequireComponent(typeof(CharacterController))]
+    public sealed class PlayerController : MonoBehaviour
+    {
+        [SerializeField, Tooltip("Tunable movement values.")]
+        private ObbyLevelConfig config;
+
+        [SerializeField, Tooltip("Camera whose yaw defines 'forward'. Only its horizontal facing is used.")]
+        private Transform cameraReference;
+
+        [SerializeField, Min(0f), Tooltip("Safety limit, metres per frame: if the surface under the player moves further than this in one frame (a platform snapping back), the carry is skipped.")]
+        private float maxCarryDistance = 2f;
+
+        [SerializeField, Range(0f, 1f), Tooltip("A contact counts as ground when its normal points up at least this much (1 = flat floor only).")]
+        private float groundNormalMinY = 0.5f;
+
+        private CharacterController characterController;
+        private InputAction moveAction;
+        private InputAction jumpAction;
+
+        private Vector2 virtualMove;
+        private float horizontalSpeedX;
+        private float horizontalSpeedZ;
+        private float verticalSpeed;
+        private float timeSinceGrounded = float.MaxValue;
+        private float jumpBufferRemaining;
+
+        // Moving-platform support: the surface the player stood on after the last move, and the player's
+        // position in that surface's local space (so translation and rotation of the surface carry them).
+        private RideableSurface surface;
+        private Transform carrier;
+        private Vector3 carrierLocalPoint;
+        private RideableSurface groundSurfaceHit;
+        private Collider lastGroundCollider;
+        private RideableSurface lastGroundSurface;
+        private Vector3 externalVelocity;
+
+        /// <summary>The <see cref="RideableSurface"/> the player is standing on, or null (static ground or airborne).</summary>
+        public RideableSurface CurrentSurface => surface;
+
+        /// <summary>When false the player ignores all input and stands still (game over / level complete).</summary>
+        public bool ControlEnabled { get; set; } = true;
+
+        /// <summary>True if the controller was touching the ground at the end of the last update.</summary>
+        public bool IsGrounded { get; private set; }
+
+        /// <summary>Current velocity in world space (metres per second), as applied in the last update.</summary>
+        public Vector3 Velocity => new Vector3(horizontalSpeedX, verticalSpeed, horizontalSpeedZ);
+
+        /// <summary>Top horizontal speed from the config, used to normalise <see cref="Velocity"/> for animation.</summary>
+        public float MaxMoveSpeed => config != null ? config.moveSpeed : 1f;
+
+        /// <summary>Raised on the frame a jump actually starts (after coyote time / jump buffer checks).</summary>
+        public event System.Action Jumped;
+
+        /// <summary>
+        /// Injects the config and camera when the player is created from code. Optional when the
+        /// serialized fields are already assigned.
+        /// </summary>
+        public void Initialize(ObbyLevelConfig levelConfig, Transform cameraTransform)
+        {
+            config = levelConfig;
+            cameraReference = cameraTransform;
+        }
+
+        /// <summary>Sets the on-screen stick value (x = right, y = forward, length 0..1). Pass zero to release.</summary>
+        public void SetVirtualMove(Vector2 value)
+        {
+            virtualMove = Vector2.ClampMagnitude(value, 1f);
+        }
+
+        /// <summary>Queues a jump, as if the jump key had just been pressed (on-screen jump button).</summary>
+        public void RequestJump()
+        {
+            if (config != null) jumpBufferRemaining = config.jumpBufferTime;
+        }
+
+        /// <summary>
+        /// Gives the player an instant velocity change (bounce pad, launcher). Horizontal parts are added
+        /// to the current horizontal speed (air control then pulls it back toward the input); a non-zero
+        /// vertical part replaces the vertical speed, and an upward one lifts the player off the ground
+        /// without coyote time.
+        /// </summary>
+        public void Launch(Vector3 velocity)
+        {
+            horizontalSpeedX += velocity.x;
+            horizontalSpeedZ += velocity.z;
+            if (Mathf.Approximately(velocity.y, 0f)) return;
+
+            verticalSpeed = velocity.y;
+            if (velocity.y > 0f)
+            {
+                IsGrounded = false;
+                timeSinceGrounded = float.MaxValue;
+                jumpBufferRemaining = 0f;
+                Jumped?.Invoke(); // plays the jump animation for bounces too
+            }
+        }
+
+        /// <summary>
+        /// Adds a drift velocity (metres per second, world space) for the next move only: call it every
+        /// frame while it applies (wind gust, current). It moves the player without changing their own speed.
+        /// </summary>
+        public void AddExternalVelocity(Vector3 velocity)
+        {
+            externalVelocity += velocity;
+        }
+
+        /// <summary>
+        /// Moves the player instantly to a position and facing, clearing all momentum.
+        /// Used for respawning; does not touch the level timer.
+        /// </summary>
+        public void TeleportTo(Vector3 position, float yawDegrees)
+        {
+            SetSurface(null);
+            externalVelocity = Vector3.zero;
+
+            // A CharacterController overrides transform changes while enabled.
+            characterController.enabled = false;
+            transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yawDegrees, 0f));
+            characterController.enabled = true;
+
+            horizontalSpeedX = 0f;
+            horizontalSpeedZ = 0f;
+            verticalSpeed = 0f;
+            jumpBufferRemaining = 0f;
+            timeSinceGrounded = float.MaxValue;
+        }
+
+        private void Awake()
+        {
+            characterController = GetComponent<CharacterController>();
+
+            moveAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
+            moveAction.AddCompositeBinding("2DVector")
+                .With("Up", "<Keyboard>/w")
+                .With("Down", "<Keyboard>/s")
+                .With("Left", "<Keyboard>/a")
+                .With("Right", "<Keyboard>/d");
+            moveAction.AddCompositeBinding("2DVector")
+                .With("Up", "<Keyboard>/upArrow")
+                .With("Down", "<Keyboard>/downArrow")
+                .With("Left", "<Keyboard>/leftArrow")
+                .With("Right", "<Keyboard>/rightArrow");
+            moveAction.AddBinding("<Gamepad>/leftStick");
+
+            jumpAction = new InputAction("Jump", InputActionType.Button);
+            jumpAction.AddBinding("<Keyboard>/space");
+            jumpAction.AddBinding("<Gamepad>/buttonSouth");
+        }
+
+        private void OnEnable()
+        {
+            moveAction.Enable();
+            jumpAction.Enable();
+        }
+
+        private void OnDisable()
+        {
+            SetSurface(null);
+            moveAction.Disable();
+            jumpAction.Disable();
+        }
+
+        private void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            if (hit.normal.y < groundNormalMinY) return;
+
+            Collider ground = hit.collider;
+            if (ground != lastGroundCollider)
+            {
+                lastGroundCollider = ground;
+                lastGroundSurface = ground != null ? ground.GetComponentInParent<RideableSurface>() : null;
+            }
+            if (lastGroundSurface != null) groundSurfaceHit = lastGroundSurface;
+        }
+
+        /// <summary>Switches the surface the player rides, telling the old and new one, and re-samples the carry point.</summary>
+        private void SetSurface(RideableSurface next)
+        {
+            if (next != surface)
+            {
+                RideableSurface previous = surface;
+                surface = next;
+                if (previous != null) previous.SetRider(null);
+                if (next != null) next.SetRider(this);
+            }
+
+            carrier = surface != null ? surface.transform : null;
+            if (carrier != null) carrierLocalPoint = carrier.InverseTransformPoint(transform.position);
+        }
+
+        private void OnDestroy()
+        {
+            moveAction?.Dispose();
+            jumpAction?.Dispose();
+        }
+
+        private void Update()
+        {
+            if (config == null) return;
+
+            float dt = Time.deltaTime;
+
+            Vector2 input = Vector2.zero;
+            if (ControlEnabled)
+            {
+                input = moveAction.ReadValue<Vector2>() + virtualMove;
+                input = Vector2.ClampMagnitude(input, 1f);
+                if (jumpAction.WasPressedThisFrame()) jumpBufferRemaining = config.jumpBufferTime;
+            }
+            else
+            {
+                jumpBufferRemaining = 0f;
+            }
+
+            // Camera-relative move direction on the horizontal plane.
+            Vector3 moveDir = Vector3.zero;
+            if (input.sqrMagnitude > 0.0001f)
+            {
+                Vector3 forward = cameraReference != null ? cameraReference.forward : transform.forward;
+                forward.y = 0f;
+                if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+                forward.Normalize();
+                Vector3 right = new Vector3(forward.z, 0f, -forward.x);
+                moveDir = forward * input.y + right * input.x;
+            }
+
+            // Horizontal velocity: accelerate toward the target (less control in the air).
+            float accel = config.groundAcceleration * (IsGrounded ? 1f : config.airControl);
+            float maxDelta = accel * dt;
+            float targetX = moveDir.x * config.moveSpeed;
+            float targetZ = moveDir.z * config.moveSpeed;
+            float dx = targetX - horizontalSpeedX;
+            float dz = targetZ - horizontalSpeedZ;
+            float deltaLen = Mathf.Sqrt(dx * dx + dz * dz);
+            if (deltaLen <= maxDelta || deltaLen < 0.0001f)
+            {
+                horizontalSpeedX = targetX;
+                horizontalSpeedZ = targetZ;
+            }
+            else
+            {
+                float k = maxDelta / deltaLen;
+                horizontalSpeedX += dx * k;
+                horizontalSpeedZ += dz * k;
+            }
+
+            // Vertical: coyote time + jump buffer + gravity.
+            if (IsGrounded) timeSinceGrounded = 0f;
+            else timeSinceGrounded += dt;
+
+            jumpBufferRemaining -= dt;
+            bool canJump = timeSinceGrounded <= config.coyoteTime;
+            if (jumpBufferRemaining > 0f && canJump)
+            {
+                verticalSpeed = config.jumpSpeed;
+                jumpBufferRemaining = 0f;
+                timeSinceGrounded = float.MaxValue; // consume coyote window: no double jump
+                Jumped?.Invoke();
+            }
+            else if (IsGrounded && verticalSpeed <= 0f)
+            {
+                verticalSpeed = -config.groundedStickSpeed;
+            }
+            else
+            {
+                verticalSpeed = Mathf.Max(verticalSpeed - config.gravity * dt, -config.maxFallSpeed);
+            }
+
+            // Riding a moving surface: follow its movement since the last frame (plus its own drift).
+            Vector3 carry = Vector3.zero;
+            if (IsGrounded && surface != null && carrier != null)
+            {
+                Physics.SyncTransforms(); // let the controller see the platform where it is drawn
+                carry = carrier.TransformPoint(carrierLocalPoint) - transform.position;
+                carry += surface.SurfaceVelocity * dt;
+                if (carry.sqrMagnitude > maxCarryDistance * maxCarryDistance) carry = Vector3.zero;
+            }
+
+            Vector3 velocity = new Vector3(horizontalSpeedX, verticalSpeed, horizontalSpeedZ);
+            Vector3 motion = (velocity + externalVelocity) * dt + carry;
+            externalVelocity = Vector3.zero;
+            groundSurfaceHit = null;
+            characterController.Move(motion);
+            IsGrounded = characterController.isGrounded;
+            SetSurface(IsGrounded ? groundSurfaceHit : null);
+
+            // Bumping into a ceiling cancels upward speed.
+            if ((characterController.collisionFlags & CollisionFlags.Above) != 0 && verticalSpeed > 0f)
+            {
+                verticalSpeed = 0f;
+            }
+
+            // Face the direction of travel.
+            if (moveDir.sqrMagnitude > 0.0001f)
+            {
+                Quaternion target = Quaternion.LookRotation(moveDir, Vector3.up);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, target, config.turnSpeed * dt);
+            }
+        }
+    }
+}

@@ -15,8 +15,8 @@ namespace WeatherForSale.Core
     /// Played directly from the editor without a shop run, it starts a run on this scene's map (or
     /// <see cref="GameLoopConfig.fallbackMapId"/>) so the loop still works.
     /// Level 1 complete: the Level Complete panel's Next button loads level 2. Last level complete:
-    /// the suction starts in place at once (no panel), and the level's countdown keeps running from
-    /// the time left: the bottle must be full before it runs out, or the level is Game Over.
+    /// the suction starts in place at once (no panel). The countdown stops there: the suction has no time
+    /// limit, but its time is added to the run's total, so a slow collect costs stars.
     /// Game Over is left to the existing Restart button (<see cref="ObbyLevelManager.RestartLevel"/>),
     /// which reloads the same level and keeps the run.
     /// Implements: story-003 criteria 1, 8 and 9 (design/game-brief.md "Core loop").
@@ -116,43 +116,34 @@ namespace WeatherForSale.Core
         }
 
         /// <summary>
-        /// Called by the suction minigame when the bottle is full: stops the countdown and adds the
-        /// level-2 time (obby plus suction) to the run.
+        /// Called by the suction minigame when the bottle is full: adds the time spent collecting to the
+        /// run (the level time was added when the level was passed).
         /// </summary>
-        public void SuctionCollected()
+        public void SuctionCollected(float suctionSeconds)
         {
             if (!suctionRunning) return;
             suctionRunning = false;
-            level.StopTimer();
-            if (session != null && level.Timer != null) session.AddRunSeconds(level.Timer.Duration - level.Timer.Remaining);
+            if (session != null) session.AddRunSeconds(suctionSeconds);
         }
 
         private void OnLevelStateChanged(ObbyLevelState state)
         {
-            if (state == ObbyLevelState.GameOver && suctionRunning)
-            {
-                // Time ran out while collecting: the pass is void, Restart replays level 2.
-                suctionRunning = false;
-                if (suctionStage != null) suctionStage.Fail();
-                return;
-            }
             if (state == ObbyLevelState.Playing || levelResultRecorded || session == null) return;
             levelResultRecorded = true;
 
             // Falls count on every attempt; time counts only for the attempt that passed the level.
             session.AddRunDeaths(level.DeathCount);
             if (state != ObbyLevelState.Completed) return;
+            if (level.Timer != null) session.AddRunSeconds(level.Timer.Duration - level.Timer.Remaining);
 
             if (IsLastLevel && suctionStage != null)
             {
-                // The time is added when the bottle is full (SuctionCollected); the clock keeps running.
+                // No time limit while collecting; SuctionCollected adds the collecting time.
                 suctionRunning = true;
-                level.ContinueTimerAfterCompletion();
                 suctionStage.Begin(session.ChosenMapId);
                 return;
             }
 
-            if (level.Timer != null) session.AddRunSeconds(level.Timer.Duration - level.Timer.Remaining);
             if (IsLastLevel)
             {
                 Debug.LogWarning("[GameLoopController] Last level completed but no SuctionStage is assigned; rebuild the scene with ObbyTestSceneBuilder.BuildMaps().");

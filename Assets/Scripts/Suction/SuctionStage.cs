@@ -20,6 +20,8 @@ namespace WeatherForSale.Suction
     {
         [SerializeField] private SuctionConfig config;
         [SerializeField] private SuctionMinigame minigame;
+        [SerializeField, Tooltip("Map id of this scene: colours the weather that waits before the suction starts.")]
+        private string sceneMapId = "";
 
         [Header("Player and camera")]
         [SerializeField] private PlayerController player;
@@ -57,6 +59,10 @@ namespace WeatherForSale.Suction
         private Vector3 frameForward;
         private float orbSide;            // -1 when the orb is on Sam's left, +1 on his right
         private float poseWeight;
+        private float spotGroundY;        // top of the ground Sam stands on during the suction
+        private bool feetLocked;
+        private Vector3 lockedLeftFoot, lockedRightFoot;
+        private Quaternion lockedLeftFootRotation, lockedRightFootRotation;
         private float poseTime;
         private float yank;               // 0..1, kicked to 1 by each counted press, fades out
         private float lastGauge;
@@ -70,10 +76,38 @@ namespace WeatherForSale.Suction
         /// <summary>True between <see cref="Begin"/> and the end of the run.</summary>
         public bool IsRunning => running;
 
+        private Vector3 idleOrbPosition;
+
         private void Awake()
         {
             if (orb != null) orb.gameObject.SetActive(false);
             StopStreaks(true);
+        }
+
+        private void Start()
+        {
+            // The weather waits, floating, where the suction will happen, so it is the visible goal.
+            if (config == null || !config.orbVisibleBeforeSuction || orb == null || spot == null || running) return;
+            idleOrbPosition = spot.TransformPoint(config.orbLocalPosition);
+            orb.position = idleOrbPosition;
+            orb.localScale = Vector3.one * config.orbStartDiameter;
+            ApplyOrbColour(config.ForMap(sceneMapId).orbColor);
+            orb.gameObject.SetActive(true);
+        }
+
+        private void Update()
+        {
+            if (running || orb == null || !orb.gameObject.activeSelf || config == null) return;
+            orb.position = idleOrbPosition + Vector3.up * (Mathf.Sin(Time.time * config.orbIdleBobHz * 2f * Mathf.PI) * config.orbIdleBob);
+        }
+
+        private void ApplyOrbColour(Color colour)
+        {
+            if (orbRenderer == null) return;
+            block ??= new MaterialPropertyBlock();
+            orbRenderer.GetPropertyBlock(block);
+            block.SetColor(BaseColorId, colour);
+            orbRenderer.SetPropertyBlock(block);
         }
 
         /// <summary>
@@ -114,6 +148,8 @@ namespace WeatherForSale.Suction
             }
 
             frameYaw = frame.eulerAngles.y;
+            spotGroundY = frame.position.y;
+            feetLocked = false;
             frameRotation = Quaternion.Euler(0f, frameYaw, 0f);
             frameRight = frameRotation * Vector3.right;
             frameForward = frameRotation * Vector3.forward;
@@ -132,13 +168,7 @@ namespace WeatherForSale.Suction
                 orb.localScale = Vector3.one * config.orbStartDiameter;
                 orb.gameObject.SetActive(true);
             }
-            if (orbRenderer != null)
-            {
-                block ??= new MaterialPropertyBlock();
-                orbRenderer.GetPropertyBlock(block);
-                block.SetColor(BaseColorId, look.orbColor);
-                orbRenderer.SetPropertyBlock(block);
-            }
+            ApplyOrbColour(look.orbColor);
 
             float surroundLife = config.streakSurroundRadius / config.streakSpeed;
             SetupStreaks(surroundStreaks, Vector3.zero, config.streakSurroundRadius, config.streakSurroundRate, surroundLife, look.streakColor);
@@ -147,15 +177,6 @@ namespace WeatherForSale.Suction
                 Mathf.Max(0.1f, orbDistance / config.streakSpeed), look.streakColor);
 
             if (minigame != null) minigame.Begin();
-        }
-
-        /// <summary>The level timer ran out mid-collect: the minigame stops and the streaks fade; Sam keeps pulling behind the Game Over panel.</summary>
-        public void Fail()
-        {
-            if (!running || finished) return;
-            finished = true;
-            if (minigame != null) minigame.Fail();
-            StopStreaks(false);
         }
 
         private void LateUpdate()
@@ -256,6 +277,12 @@ namespace WeatherForSale.Suction
                 if (shoulders.sqrMagnitude > 0.0001f) Rotate(hips, Vector3.up, Vector3.SignedAngle(shoulders, frameRight, Vector3.up));
             }
 
+            // Ankle heights from the idle animation (feet on the ground), before the legs are swung out:
+            // the swing lifts the feet, so they are put back down to these heights below.
+            float groundY = player != null ? player.transform.position.y : transform.position.y;
+            float leftAnkle = leftFoot != null ? Mathf.Max(0f, leftFoot.position.y - groundY) : 0f;
+            float rightAnkle = rightFoot != null ? Mathf.Max(0f, rightFoot.position.y - groundY) : 0f;
+
             Transform frontLeg = orbSide < 0f ? leftUpperLeg : rightUpperLeg;
             Transform backLeg = orbSide < 0f ? rightUpperLeg : leftUpperLeg;
             Rotate(leftUpperLeg, frameForward, -config.poseLegSpreadDegrees * w);
@@ -273,8 +300,34 @@ namespace WeatherForSale.Suction
             bool feet = leftFoot != null && rightFoot != null;
             Vector3 leftFootPosition = feet ? leftFoot.position : Vector3.zero;
             Vector3 rightFootPosition = feet ? rightFoot.position : Vector3.zero;
+            // Planted: both feet on the ground (Sam stands on flat ground during the suction).
+            // Measured against the root (the animation's ground), placed on the spot's surface: the
+            // CharacterController stands a skin width above the real ground.
+            leftFootPosition.y = spotGroundY + leftAnkle;
+            rightFootPosition.y = spotGroundY + rightAnkle;
             Quaternion leftFootRotation = feet ? leftFoot.rotation : Quaternion.identity;
             Quaternion rightFootRotation = feet ? rightFoot.rotation : Quaternion.identity;
+
+            // Locked: once the stance is fully in, the feet stay exactly there (the idle clip's foot
+            // shuffle and the body rock never move them).
+            if (feet)
+            {
+                if (feetLocked)
+                {
+                    leftFootPosition = lockedLeftFoot;
+                    rightFootPosition = lockedRightFoot;
+                    leftFootRotation = lockedLeftFootRotation;
+                    rightFootRotation = lockedRightFootRotation;
+                }
+                else if (poseWeight >= 1f)
+                {
+                    feetLocked = true;
+                    lockedLeftFoot = leftFootPosition;
+                    lockedRightFoot = rightFootPosition;
+                    lockedLeftFootRotation = leftFootRotation;
+                    lockedRightFootRotation = rightFootRotation;
+                }
+            }
 
             // Negative about Sam's right leans back; orbSide's sign leans away from the orb.
             // Most of the lean rocks the whole body about the ankles; the rest bends the spine.
@@ -301,11 +354,33 @@ namespace WeatherForSale.Suction
             // Legs bend so the feet land back where they were, flat as before; knees point forward.
             if (feet)
             {
+                // A leg that cannot reach its planted foot (body rocked back, legs spread) would leave the
+                // foot hanging in the air: sink the hips just enough for both feet to reach, knees a little bent.
+                float sink = Mathf.Max(LegShortfall(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition),
+                                       LegShortfall(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition));
+                if (sink > 0f && hips != null) hips.position += Vector3.down * sink;
+
                 SolveLimb(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition, frameForward - frameRight * 0.3f, 1f);
                 SolveLimb(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition, frameForward + frameRight * 0.3f, 1f);
                 leftFoot.rotation = leftFootRotation;
                 rightFoot.rotation = rightFootRotation;
             }
+        }
+
+        /// <summary>
+        /// How much lower the hip would have to be for this leg to reach <paramref name="goal"/> at 96% of its
+        /// full length (0 when it already reaches). Vertical-only estimate; good enough for small corrections.
+        /// </summary>
+        private static float LegShortfall(Transform upper, Transform lower, Transform foot, Vector3 goal)
+        {
+            if (upper == null || lower == null || foot == null) return 0f;
+            float length = (lower.position - upper.position).magnitude + (foot.position - lower.position).magnitude;
+            float reach = length * 0.96f;
+            Vector3 toGoal = goal - upper.position;
+            float horizontal = new Vector2(toGoal.x, toGoal.z).magnitude;
+            if (horizontal >= reach || toGoal.magnitude <= reach) return 0f;
+            float verticalAllowed = Mathf.Sqrt(reach * reach - horizontal * horizontal);
+            return Mathf.Max(0f, -toGoal.y - verticalAllowed);
         }
 
         /// <summary>The bottle sits out from the chest toward the orb, tilted so its mouth leans at it.</summary>

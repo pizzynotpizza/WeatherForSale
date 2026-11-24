@@ -31,7 +31,7 @@ namespace WeatherForSale.EditorTools
     public static class ObbyTestSceneBuilder
     {
         private const string ConfigPath = "Assets/Data/ObbyLevelConfig_Level1.asset";
-        private const string MaterialFolder = "Assets/Materials/Obby";
+        internal const string MaterialFolder = "Assets/Materials/Obby";
 
         // Player character (Meshy model, rigged at 1.4 m, Humanoid) and its clips.
         private const string SamFolder = "Assets/Art/Characters/Sam/";
@@ -139,7 +139,7 @@ namespace WeatherForSale.EditorTools
                 new Color(0.50f, 0.75f, 0.98f), new Color(0.72f, 0.78f, 0.88f), new Color(1.00f, 0.98f, 0.92f)),
         };
 
-        private struct PlatformSpec
+        internal struct PlatformSpec
         {
             public string Name;
             public float X, TopY, Z, SizeX, SizeZ;
@@ -269,24 +269,58 @@ namespace WeatherForSale.EditorTools
 
             GameObject startPlatform = CreatePlatform("StartPad", new PlatformSpec("StartPad", 0f, 0f, 0f, 6f, 6f), startMat, levelRoot.transform);
 
-            foreach (PlatformSpec spec in Stones)
+            // Story 004: maps with a real layout (obstacles, scenery) are built by MapLevelBuilder; the
+            // others keep the starter stepping-stone layout below (level 2 = mirrored level 1) for now.
+            MapLevelBuilder.Result layout = null;
+            if (MapLevelBuilder.HasLayout(theme.Id, theme.Level))
             {
-                PlatformSpec placed = spec;
-                placed.X *= mirror; // level 2: same stones, mirrored left-right
-                CreatePlatform(spec.Name, placed, platformMat, levelRoot.transform);
+                layout = MapLevelBuilder.Build(theme.Id, theme.Level, new MapLevelBuilder.Inputs
+                {
+                    Root = levelRoot.transform,
+                    PlatformMaterial = platformMat,
+                    StartMaterial = startMat,
+                    CheckpointMaterial = checkpointMat,
+                    FinishMaterial = finishMat,
+                    WhiteMaterial = whiteMat,
+                });
             }
 
-            Checkpoint cp1 = CreateCheckpoint("Checkpoint_1", new PlatformSpec("Checkpoint_1", 12.5f * mirror, 1f, 15.5f, 5f, 5f), checkpointMat, levelRoot.transform);
-            Checkpoint cp2 = CreateCheckpoint("Checkpoint_2", new PlatformSpec("Checkpoint_2", 0f, 3f, 29.5f, 5f, 5f), checkpointMat, levelRoot.transform);
-            FinishTrigger finish = CreateFinish(new PlatformSpec("FinishPad", 9f * mirror, 5.5f, 46f, 5f, 5f), finishMat, whiteMat, levelRoot.transform);
+            Checkpoint[] checkpoints;
+            FinishTrigger finish;
+            Vector3 finishTop; // centre of the finish pad's top surface
+            float hazardTopY = theme.HazardTopY;
+            float suctionSpotYaw = SuctionSpotYaw;
+            if (layout != null)
+            {
+                suctionSpotYaw = layout.SuctionSpotYaw;
+                checkpoints = layout.Checkpoints.ToArray();
+                finish = layout.Finish;
+                finishTop = layout.FinishTop;
+                hazardTopY = layout.HazardTopY;
+            }
+            else
+            {
+                foreach (PlatformSpec spec in Stones)
+                {
+                    PlatformSpec placed = spec;
+                    placed.X *= mirror; // level 2: same stones, mirrored left-right
+                    CreatePlatform(spec.Name, placed, platformMat, levelRoot.transform);
+                }
+
+                Checkpoint cp1 = CreateCheckpoint("Checkpoint_1", new PlatformSpec("Checkpoint_1", 12.5f * mirror, 1f, 15.5f, 5f, 5f), checkpointMat, levelRoot.transform);
+                Checkpoint cp2 = CreateCheckpoint("Checkpoint_2", new PlatformSpec("Checkpoint_2", 0f, 3f, 29.5f, 5f, 5f), checkpointMat, levelRoot.transform);
+                finish = CreateFinish(new PlatformSpec("FinishPad", 9f * mirror, 5.5f, 46f, 5f, 5f), finishMat, whiteMat, levelRoot.transform);
+                checkpoints = new[] { cp1, cp2 };
+                finishTop = new Vector3(9f * mirror, 5.5f, 46f);
+            }
 
             // Hazard (lava on the test level; swamp, river, quicksand or ice water on the maps): a trigger slab well below the platforms (top at y = -6, extends past the config kill height).
             GameObject lava = GameObject.CreatePrimitive(PrimitiveType.Cube);
             lava.name = theme.HazardName + "_KillVolume";
             lava.transform.SetParent(levelRoot.transform, false);
-            lava.transform.position = new Vector3(5f * mirror, theme.HazardTopY - 5f, 25f);
+            lava.transform.position = new Vector3(5f * mirror, hazardTopY - 5f, 25f);
             // A deep chasm floor must reach the horizon, or the sky shows below the platforms.
-            float hazardSize = theme.HazardTopY < -20f ? 700f : 200f;
+            float hazardSize = hazardTopY < -20f ? 700f : 200f;
             lava.transform.localScale = new Vector3(hazardSize, 10f, hazardSize);
             lava.GetComponent<MeshRenderer>().sharedMaterial = lavaMat;
             lava.GetComponent<BoxCollider>().isTrigger = true;
@@ -305,7 +339,7 @@ namespace WeatherForSale.EditorTools
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = theme.Sky;
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = theme.HazardTopY < -20f ? 450f : 250f;
+            cam.farClipPlane = hazardTopY < -20f ? 450f : 250f;
             camGo.AddComponent<AudioListener>();
             ThirdPersonCamera thirdPersonCamera = camGo.AddComponent<ThirdPersonCamera>();
 
@@ -340,8 +374,15 @@ namespace WeatherForSale.EditorTools
                 ("playerCamera", thirdPersonCamera),
                 ("startPoint", startPoint.transform),
                 ("finish", finish));
-            SetRefArray(manager, "checkpoints", new Object[] { cp1, cp2 });
-            SetRefArray(manager, "killVolumes", new Object[] { killVolume });
+            var checkpointRefs = new List<Object>();
+            foreach (Checkpoint checkpoint in checkpoints) checkpointRefs.Add(checkpoint);
+            var killRefs = new List<Object> { killVolume }; // the water / lava slab, then every trap of the layout
+            if (layout != null)
+            {
+                foreach (KillVolume hazard in layout.Hazards) killRefs.Add(hazard);
+            }
+            SetRefArray(manager, "checkpoints", checkpointRefs.ToArray());
+            SetRefArray(manager, "killVolumes", killRefs.ToArray());
 
             // EventSystem (Input System UI module)
             GameObject esGo = new GameObject("EventSystem");
@@ -376,8 +417,9 @@ namespace WeatherForSale.EditorTools
                     SuctionStage stage = SuctionStageBuilder.Build(new SuctionStageBuilder.StageInputs
                     {
                         Canvas = ui.Canvas,
-                        SpotPosition = new Vector3(9f * mirror, 5.5f, 46f - SuctionSpotBeforeFinish), // FinishPad top
-                        SpotYaw = SuctionSpotYaw,
+                        SpotPosition = new Vector3(finishTop.x, finishTop.y, finishTop.z - SuctionSpotBeforeFinish), // FinishPad top
+                        SpotYaw = suctionSpotYaw,
+                        MapId = theme.MapId,
                         Player = player,
                         FollowCamera = thirdPersonCamera,
                         ViewCamera = camGo.transform,
@@ -400,7 +442,7 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ level pieces
 
-        private static GameObject CreatePlatform(string name, PlatformSpec spec, Material material, Transform parent)
+        internal static GameObject CreatePlatform(string name, PlatformSpec spec, Material material, Transform parent)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = name;
@@ -427,7 +469,7 @@ namespace WeatherForSale.EditorTools
             return trigger;
         }
 
-        private static Checkpoint CreateCheckpoint(string name, PlatformSpec spec, Material material, Transform parent)
+        internal static Checkpoint CreateCheckpoint(string name, PlatformSpec spec, Material material, Transform parent)
         {
             GameObject platform = CreatePlatform(name, spec, material, parent);
             GameObject trigger = CreateTriggerChild(name, platform, spec);
@@ -436,7 +478,7 @@ namespace WeatherForSale.EditorTools
             return checkpoint;
         }
 
-        private static FinishTrigger CreateFinish(PlatformSpec spec, Material padMaterial, Material whiteMat, Transform parent)
+        internal static FinishTrigger CreateFinish(PlatformSpec spec, Material padMaterial, Material whiteMat, Transform parent)
         {
             GameObject platform = CreatePlatform("FinishPad", spec, padMaterial, parent);
             GameObject trigger = CreateTriggerChild("FinishPad", platform, spec);
@@ -587,7 +629,7 @@ namespace WeatherForSale.EditorTools
             {
                 Canvas = canvasGo.transform,
                 CompleteButton = cButton,
-                HideDuringSuction = new[] { fallsText.gameObject, pad.gameObject }, // the timer stays: the suction runs on it
+                HideDuringSuction = new[] { timerText.gameObject, fallsText.gameObject, pad.gameObject }, // no time limit while collecting
             };
         }
 
@@ -827,7 +869,7 @@ namespace WeatherForSale.EditorTools
             return config;
         }
 
-        private static Material GetOrCreateMaterial(string name, Color color)
+        internal static Material GetOrCreateMaterial(string name, Color color)
         {
             string path = MaterialFolder + "/" + name + ".mat";
             Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);

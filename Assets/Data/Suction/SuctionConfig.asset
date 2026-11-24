@@ -21,12 +21,12 @@ MonoBehaviour:
   inputMode: 0
   tapButtonSize: 240
   safeMarginSides: 140
-  safeMarginTop: 360
+  safeMarginTop: 280
   safeMarginBottom: 140
   minJumpDistance: 300
   panelInputDelaySeconds: 0.8
-  cameraLocalPosition: {x: 0.35, y: 0.65, z: 2.6}
-  cameraLookLocal: {x: -0.7, y: 0.9, z: 0.3}
+  cameraLocalPosition: {x: 1.25, y: 0.95, z: 3}
+  cameraLookLocal: {x: -0.1, y: 1.05, z: 0.2}
   cameraMoveSeconds: 0.8
   bottleHoldDistance: 0.42
   bottleHoldDrop: 0.04
@@ -37,8 +37,8 @@ MonoBehaviour:
   bottleScale: 1.7
   poseLeanBackDegrees: 12
   poseLeanSideDegrees: 10
-  poseLegSpreadDegrees: 16
-  poseLegStrideDegrees: 18
+  poseLegSpreadDegrees: 14
+  poseLegStrideDegrees: 30
   poseShakeDegrees: 1.6
   poseShakeHz: 9
   poseHeaveDegrees: 16
@@ -48,7 +48,10 @@ MonoBehaviour:
   poseBottlePull: 0.08
   poseBodyShare: 0.65
   poseBlendSeconds: 0.35
-  orbLocalPosition: {x: -1.1, y: 1.1, z: 0.9}
+  orbVisibleBeforeSuction: 1
+  orbIdleBob: 0.18
+  orbIdleBobHz: 0.45
+  orbLocalPosition: {x: 0, y: 1.5, z: 2.6}
   orbStartDiameter: 1.3
   orbEndDiameter: 0.1
   streakSurroundRadius: 2.4

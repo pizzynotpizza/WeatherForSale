@@ -21,8 +21,7 @@ namespace WeatherForSale.Suction
         Complete,
         /// <summary>Next pressed; the shop is loading.</summary>
         Leaving,
-        /// <summary>The level timer ran out before the gauge was full (Game Over is showing).</summary>
-        Failed,
+
     }
 
     /// <summary>
@@ -206,19 +205,11 @@ namespace WeatherForSale.Suction
             if (promptText != null) promptText.gameObject.SetActive(false);
             if (titleText != null) titleText.gameObject.SetActive(false);
 
-            // The level timer kept running through the suction; the loop stops it and adds the time.
-            if (loop != null) loop.SuctionCollected();
+            // No time limit, but the collecting time counts toward the run total (and the stars).
+            if (loop != null) loop.SuctionCollected(collectSeconds);
 
             if (collectedScreen != null) collectedScreen.Show(strings, map, config.panelInputDelaySeconds);
             else OnContinue();
-        }
-
-        /// <summary>Time ran out while collecting: stops input and hides the suction HUD. Ignored unless collecting.</summary>
-        public void Fail()
-        {
-            if (Phase != SuctionPhase.Collecting) return;
-            Phase = SuctionPhase.Failed;
-            if (hudRoot != null) hudRoot.SetActive(false);
         }
 
         private void OnContinue()
