@@ -20,6 +20,12 @@ namespace WeatherForSale.Obby
         /// </summary>
         public virtual Vector3 SurfaceVelocity => Vector3.zero;
 
+        /// <summary>
+        /// Multiplier on the player's ground acceleration while standing on this surface (1 = normal grip,
+        /// below 1 = slippery: slow to start, slow to stop). An ice surface overrides it.
+        /// </summary>
+        public virtual float Traction => 1f;
+
         /// <summary>The player standing on this surface right now, or null.</summary>
         public PlayerController Rider { get; private set; }
 

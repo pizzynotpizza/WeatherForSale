@@ -129,6 +129,9 @@ namespace WeatherForSale.EditorTools
             UiSprites sprites = LoadUiSprites();
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             BuildUi(inputs.Canvas, font, sprites, config, strings, inputs.Loop, minigame);
+            SetRefs(minigame,
+                ("avoidTarget", inputs.Player != null ? inputs.Player.transform : null),
+                ("avoidCamera", inputs.ViewCamera != null ? inputs.ViewCamera.GetComponent<Camera>() : null));
 
             SetRefs(stage,
                 ("config", config), ("minigame", minigame),
@@ -201,18 +204,18 @@ namespace WeatherForSale.EditorTools
             RectTransform keyArea = CreateRect("KeyArea", hud);
             Stretch(keyArea);
             RectTransform keyPrompt = CreateRect("KeyPrompt", keyArea);
-            PlaceCentered(keyPrompt, new Vector2(0f, -200f), new Vector2(680f, 235f));
+            PlaceCentered(keyPrompt, new Vector2(0f, -200f), new Vector2(500f, 172f)); // compact, so it fits beside Sam
             RectTransform keyCap = CreateRect("KeyCap", keyPrompt);
-            PlaceCorner(keyCap, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(220f, 235f));
+            PlaceCorner(keyCap, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(161f, 172f));
             AddImage(keyCap, sprites.RoundWood, Color.white, false, false).preserveAspect = true;
-            Text keyText = CreateText("Key", keyCap, font, "W", 130, TextAnchor.MiddleCenter, Color.white);
+            Text keyText = CreateText("Key", keyCap, font, "W", 96, TextAnchor.MiddleCenter, Color.white);
             Stretch(keyText.rectTransform);
-            keyText.rectTransform.offsetMin = new Vector2(0f, 20f); // the round button has a lip at the bottom
+            keyText.rectTransform.offsetMin = new Vector2(0f, 15f); // the round button has a lip at the bottom
             keyText.fontStyle = FontStyle.Bold;
             keyText.gameObject.AddComponent<Outline>().effectColor = OutlineColor;
 
-            Text prompt = CreateText("Prompt", keyPrompt, font, "", 104, TextAnchor.MiddleLeft, Color.white);
-            PlaceCorner(prompt.rectTransform, new Vector2(0f, 0.5f), new Vector2(240f, 0f), new Vector2(440f, 150f));
+            Text prompt = CreateText("Prompt", keyPrompt, font, "", 78, TextAnchor.MiddleLeft, Color.white);
+            PlaceCorner(prompt.rectTransform, new Vector2(0f, 0.5f), new Vector2(176f, 0f), new Vector2(324f, 110f));
             prompt.fontStyle = FontStyle.Bold;
             Outline promptOutline = prompt.gameObject.AddComponent<Outline>();
             promptOutline.effectColor = OutlineColor;

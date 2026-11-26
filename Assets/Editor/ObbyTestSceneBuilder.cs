@@ -261,7 +261,7 @@ namespace WeatherForSale.EditorTools
             light.type = LightType.Directional;
             light.intensity = 1.1f;
             light.color = theme.Sun;
-            light.shadows = LightShadows.Hard;
+            light.shadows = LightShadows.Soft; // soft edges (mobile quality falls back to hard)
             lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
             // Level geometry

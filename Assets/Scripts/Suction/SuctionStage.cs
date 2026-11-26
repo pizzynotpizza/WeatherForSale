@@ -61,6 +61,7 @@ namespace WeatherForSale.Suction
         private float poseWeight;
         private float spotGroundY;        // top of the ground Sam stands on during the suction
         private bool feetLocked;
+        private float hipSink;            // how far the hips are lowered so both feet reach the ground
         private Vector3 lockedLeftFoot, lockedRightFoot;
         private Quaternion lockedLeftFootRotation, lockedRightFootRotation;
         private float poseTime;
@@ -150,6 +151,7 @@ namespace WeatherForSale.Suction
             frameYaw = frame.eulerAngles.y;
             spotGroundY = frame.position.y;
             feetLocked = false;
+            hipSink = 0f;
             frameRotation = Quaternion.Euler(0f, frameYaw, 0f);
             frameRight = frameRotation * Vector3.right;
             frameForward = frameRotation * Vector3.forward;
@@ -356,9 +358,10 @@ namespace WeatherForSale.Suction
             {
                 // A leg that cannot reach its planted foot (body rocked back, legs spread) would leave the
                 // foot hanging in the air: sink the hips just enough for both feet to reach, knees a little bent.
-                float sink = Mathf.Max(LegShortfall(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition),
-                                       LegShortfall(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition));
-                if (sink > 0f && hips != null) hips.position += Vector3.down * sink;
+                // Only ever deepens (never springs back up), so the body does not bob as he rocks.
+                hipSink = Mathf.Max(hipSink, LegShortfall(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition),
+                                    LegShortfall(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition));
+                if (hipSink > 0f && hips != null) hips.position += Vector3.down * hipSink;
 
                 SolveLimb(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition, frameForward - frameRight * 0.3f, 1f);
                 SolveLimb(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition, frameForward + frameRight * 0.3f, 1f);

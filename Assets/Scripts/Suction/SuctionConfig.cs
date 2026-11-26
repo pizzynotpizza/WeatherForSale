@@ -76,7 +76,7 @@ namespace WeatherForSale.Suction
         [Min(80f)] public float tapButtonSize = 240f;
 
         [Tooltip("Gap kept between the moving prompt (tap button or key) and the left/right screen edges, canvas units.")]
-        [Min(0f)] public float safeMarginSides = 140f;
+        [Min(0f)] public float safeMarginSides = 100f;
 
         [Tooltip("Gap kept below the top edge (keeps the button clear of the title and gauge at the top), canvas units.")]
         [Min(0f)] public float safeMarginTop = 280f;
@@ -86,6 +86,15 @@ namespace WeatherForSale.Suction
 
         [Tooltip("A new tap position is at least this far from the old one when possible, canvas units.")]
         [Min(0f)] public float minJumpDistance = 300f;
+
+        [Tooltip("Gap kept between the moving prompt and Sam on screen, canvas units.")]
+        [Min(0f)] public float promptAvoidPadding = 30f;
+
+        [Tooltip("Sam's height used for his on-screen box (with the bottle held up), metres.")]
+        [Min(0.1f)] public float avoidTargetHeight = 1.6f;
+
+        [Tooltip("Width of Sam's on-screen box as a fraction of its height (wide stance and the bottle out in front).")]
+        [Min(0.1f)] public float avoidWidthFraction = 0.7f;
 
         [Header("Screens")]
         [Tooltip("Seconds before the Continue / Next buttons accept input, so rapid tapping does not skip the screens.")]

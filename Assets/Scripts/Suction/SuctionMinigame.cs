@@ -58,6 +58,12 @@ namespace WeatherForSale.Suction
         [SerializeField] private RectTransform tapButton;
         [SerializeField] private Text tapButtonLabel;
 
+        [Header("Keep the prompt off Sam")]
+        [SerializeField, Tooltip("Sam (his root, at his feet): the key prompt and tap button never cover him on screen.")]
+        private Transform avoidTarget;
+        [SerializeField, Tooltip("The camera that shows Sam during the suction.")]
+        private Camera avoidCamera;
+
         [Header("Follow-up screens")]
         [SerializeField] private WeatherCollectedScreen collectedScreen;
         [SerializeField] private StageCompletePanel completePanel;
@@ -164,7 +170,11 @@ namespace WeatherForSale.Suction
                 }
             }
 
-            if (Phase == SuctionPhase.Collecting) gauge.Tick(Time.deltaTime);
+            if (Phase == SuctionPhase.Collecting)
+            {
+                gauge.Tick(Time.deltaTime);
+                KeepPromptOffSam();
+            }
             RefreshGauge(false);
         }
 
@@ -322,14 +332,55 @@ namespace WeatherForSale.Suction
 
             Vector2 centre = rect.center;
             Vector2 old = target.anchoredPosition + centre;
-            Vector2 pick = old;
-            for (int attempt = 0; attempt < 8; attempt++)
+            bool hasZone = AvoidZone(area, out Rect zone);
+            Vector2 pick = old, fallback = old;
+            bool found = false, fallbackClear = false;
+            for (int attempt = 0; attempt < 24; attempt++)
             {
                 pick = new Vector2(Random.Range(xMin, xMax), Random.Range(yMin, yMax));
-                if ((pick - old).sqrMagnitude >= config.minJumpDistance * config.minJumpDistance) break;
+                bool clear = !hasZone || !new Rect(pick - half, half * 2f).Overlaps(zone);
+                if (!clear) continue;
+                if (!fallbackClear) { fallback = pick; fallbackClear = true; }
+                if ((pick - old).sqrMagnitude >= config.minJumpDistance * config.minJumpDistance) { found = true; break; }
             }
+            if (!found) pick = fallbackClear ? fallback : pick;
             target.anchorMin = target.anchorMax = new Vector2(0.5f, 0.5f);
             target.anchoredPosition = pick - centre;
+        }
+
+        /// <summary>
+        /// Sam's box on screen, in <paramref name="area"/>'s local units, grown by the config padding.
+        /// False when there is no target / camera or Sam is behind the camera.
+        /// </summary>
+        private bool AvoidZone(RectTransform area, out Rect zone)
+        {
+            zone = default;
+            if (avoidTarget == null || avoidCamera == null || area == null) return false;
+            Vector3 feet = avoidCamera.WorldToScreenPoint(avoidTarget.position);
+            Vector3 head = avoidCamera.WorldToScreenPoint(avoidTarget.position + Vector3.up * config.avoidTargetHeight);
+            if (feet.z <= 0f || head.z <= 0f) return false;
+            Canvas canvas = area.GetComponentInParent<Canvas>();
+            Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(area, feet, uiCamera, out Vector2 a);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(area, head, uiCamera, out Vector2 b);
+            float height = Mathf.Abs(b.y - a.y);
+            float halfWidth = height * config.avoidWidthFraction * 0.5f;
+            float pad = config.promptAvoidPadding;
+            float cx = (a.x + b.x) * 0.5f;
+            zone = Rect.MinMaxRect(cx - halfWidth - pad, Mathf.Min(a.y, b.y) - pad, cx + halfWidth + pad, Mathf.Max(a.y, b.y) + pad);
+            return true;
+        }
+
+        /// <summary>The camera swings and Sam rocks: if the prompt ends up over him, move it off.</summary>
+        private void KeepPromptOffSam()
+        {
+            RectTransform target = touchMode ? tapButton : (keyPromptRoot != null ? keyPromptRoot.transform as RectTransform : null);
+            if (target == null || !target.gameObject.activeInHierarchy) return;
+            var area = target.parent as RectTransform;
+            if (!AvoidZone(area, out Rect zone)) return;
+            Vector2 half = target.rect.size * 0.5f;
+            Vector2 at = target.anchoredPosition + area.rect.center;
+            if (new Rect(at - half, half * 2f).Overlaps(zone)) MoveWithinMargins(target);
         }
 
         // ------------------------------------------------------------------ gauge display

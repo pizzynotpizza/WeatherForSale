@@ -35,6 +35,10 @@ namespace WeatherForSale.Obby
         [SerializeField] private KillVolume[] killVolumes = Array.Empty<KillVolume>();
 
         private LevelTimer timer;
+        [SerializeField, Tooltip("After a respawn, more hazard touches within this many seconds are ignored (one hit = one fall).")]
+        private float respawnGraceSeconds = 0.3f;
+
+        private float lastRespawnTime = float.NegativeInfinity;
         private Vector3 respawnPosition;
         private float respawnYaw;
 
@@ -145,7 +149,9 @@ namespace WeatherForSale.Obby
 
         private void OnPlayerFell()
         {
-            if (State == ObbyLevelState.Playing) Respawn();
+            // One touch of a hazard made of several triggers (a cactus's trunk and arms) is one fall.
+            if (State != ObbyLevelState.Playing || Time.time < lastRespawnTime + respawnGraceSeconds) return;
+            Respawn();
         }
 
         private void Respawn()
@@ -154,6 +160,7 @@ namespace WeatherForSale.Obby
             player.TeleportTo(respawnPosition + Vector3.up * config.respawnHeightOffset, respawnYaw);
             if (playerCamera != null) playerCamera.SetYaw(respawnYaw);
 
+            lastRespawnTime = Time.time;
             DeathCount++;
             DeathCountChanged?.Invoke(DeathCount);
         }

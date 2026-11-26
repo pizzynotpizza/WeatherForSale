@@ -58,6 +58,12 @@ namespace WeatherForSale.EditorTools
             public readonly Transform Course;
             /// <summary>Visual-only dressing (no colliders).</summary>
             public readonly Transform Scenery;
+            /// <summary>Palette material for the grass-hill pads (null = the original green KayKit look).</summary>
+            public Material PadMaterial;
+            /// <summary>KayKit colour set (1-8) the pad hills come from; 1 = green grass, 5 = golden sand.</summary>
+            public int PadColorSet = 1;
+            /// <summary>When set, every grass-island gets a thin cap of this material on top (snow, ice).</summary>
+            public Material PadCapMaterial;
 
             public Context(string mapId, int level, Inputs inputs)
             {
@@ -77,7 +83,7 @@ namespace WeatherForSale.EditorTools
         /// <summary>True when this map level has a real layout here (otherwise the starter layout is used).</summary>
         internal static bool HasLayout(string mapId, int level)
         {
-            return mapId == "Rainforest" && (level == 1 || level == 2);
+            return (mapId == "Rainforest" || mapId == "Valley" || mapId == "Desert" || mapId == "Glacier") && (level == 1 || level == 2);
         }
 
         /// <summary>
@@ -92,6 +98,12 @@ namespace WeatherForSale.EditorTools
                 var ctx = new Context(mapId, level, inputs);
                 if (mapId == "Rainforest" && level == 1) BuildRainforest1(ctx);
                 else if (mapId == "Rainforest" && level == 2) BuildRainforest2(ctx);
+                else if (mapId == "Valley" && level == 1) BuildValley1(ctx);
+                else if (mapId == "Valley" && level == 2) BuildValley2(ctx);
+                else if (mapId == "Desert" && level == 1) BuildDesert1(ctx);
+                else if (mapId == "Desert" && level == 2) BuildDesert2(ctx);
+                else if (mapId == "Glacier" && level == 1) BuildGlacier1(ctx);
+                else if (mapId == "Glacier" && level == 2) BuildGlacier2(ctx);
                 else throw new ArgumentException("No layout for " + mapId + " level " + level + ".");
 
                 if (ctx.Result.Finish == null) throw new InvalidOperationException("The layout created no finish pad.");
@@ -133,9 +145,10 @@ namespace WeatherForSale.EditorTools
         /// Logs a warning and returns null if the model is missing.
         /// </summary>
         private static GameObject PlaceModel(string modelName, Vector3 worldPosition, Vector3 euler, Vector3 scale,
-            Material material, Transform parent)
+            Material material, Transform parent, int colorSet = 1)
         {
-            string path = KayKitFolder + modelName + "_Color1.fbx";
+            string path = colorSet == 1 ? KayKitFolder + modelName + "_Color1.fbx"
+                : KayKitFolder.Replace("/Color1/", "/Color" + colorSet + "/") + modelName + "_Color" + colorSet + ".fbx";
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (prefab == null)
             {
@@ -160,7 +173,127 @@ namespace WeatherForSale.EditorTools
             return go;
         }
 
+        /// <summary>
+        /// Instantiates a prop prefab (Meshy models in Assets/Art/Props) as visual only: colliders removed,
+        /// shadows off, scaled uniformly so its wider side is <paramref name="width"/>, and placed with its
+        /// bottom centre (or top centre when <paramref name="hangFromTop"/>) at <paramref name="anchor"/>.
+        /// <paramref name="material"/> replaces its materials when given. Returns null if the prefab is missing.
+        /// </summary>
+        internal static GameObject PlacePrefab(string prefabPath, Transform parent, Vector3 anchor, float width,
+            Material material = null, float yawDegrees = 0f, bool hangFromTop = false)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning("[MapLevelBuilder] Prop prefab not found, using the stand-in: " + prefabPath);
+                return null;
+            }
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+            // Keep the prefab's own rotation (the FBX import's axis fix) and turn it about world up.
+            go.transform.SetPositionAndRotation(anchor, Quaternion.Euler(0f, yawDegrees, 0f) * prefab.transform.rotation);
+            foreach (Collider col in go.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+            foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                r.shadowCastingMode = ShadowCastingMode.Off;
+                if (material == null) continue;
+                var shared = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < shared.Length; i++) shared[i] = material;
+                r.sharedMaterials = shared;
+            }
+            Bounds b = RendererBounds(go);
+            float wide = Mathf.Max(b.size.x, b.size.z);
+            if (wide > 0.0001f) go.transform.localScale = go.transform.localScale * (width / wide);
+            b = RendererBounds(go);
+            float y = hangFromTop ? b.max.y : b.min.y;
+            go.transform.position += new Vector3(anchor.x - b.center.x, anchor.y - y, anchor.z - b.center.z);
+            return go;
+        }
+
+        private const string CrystalFolder = "Assets/Art/Props/Rainforest/Crystal/";
+        private const string CrystalSourcePrefabPath = CrystalFolder + "Crystal.prefab";
+        private const string CrystalPrefabPath = CrystalFolder + "CrystalOnly.prefab";
+
+        /// <summary>
+        /// The Shard is the crystals alone: a copy of the Meshy crystal model with its grey rock base removed
+        /// (triangles whose texture is not purple). Made once; the original model is not changed.
+        /// Returns the prefab path to use (the original when the copy cannot be made).
+        /// </summary>
+        private static string CrystalOnlyPrefab()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(CrystalPrefabPath) != null) return CrystalPrefabPath;
+            var source = AssetDatabase.LoadAssetAtPath<GameObject>(CrystalSourcePrefabPath);
+            MeshFilter filter = source != null ? source.GetComponentInChildren<MeshFilter>(true) : null;
+            string texturePath = CrystalFolder + "Crystal_BaseColor.png";
+            if (filter == null || filter.sharedMesh == null || !System.IO.File.Exists(texturePath)) return CrystalSourcePrefabPath;
+
+            var tex = new Texture2D(2, 2);
+            tex.LoadImage(System.IO.File.ReadAllBytes(texturePath));
+            Mesh mesh = filter.sharedMesh;
+            Vector2[] uv = mesh.uv;
+            int[] tris = mesh.triangles;
+            var kept = new List<int>(tris.Length);
+            for (int t = 0; t < tris.Length; t += 3)
+            {
+                Vector2 u = (uv[tris[t]] + uv[tris[t + 1]] + uv[tris[t + 2]]) / 3f;
+                Color.RGBToHSV(tex.GetPixelBilinear(u.x, u.y), out float h, out float s, out float v);
+                bool crystal = h > 0.66f && h < 0.97f && s > 0.25f; // violet / magenta; the rocks are grey or moss green
+                if (!crystal) continue;
+                kept.Add(tris[t]); kept.Add(tris[t + 1]); kept.Add(tris[t + 2]);
+            }
+            Object.DestroyImmediate(tex);
+
+            var only = Object.Instantiate(mesh);
+            only.name = "CrystalOnly";
+            only.subMeshCount = 1;
+            only.SetTriangles(kept, 0);
+            only.RecalculateBounds();
+            AssetDatabase.CreateAsset(only, CrystalFolder + "CrystalOnly_Mesh.asset");
+
+            var copy = (GameObject)PrefabUtility.InstantiatePrefab(source);
+            PrefabUtility.UnpackPrefabInstance(copy, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            copy.GetComponentInChildren<MeshFilter>(true).sharedMesh = only;
+            PrefabUtility.SaveAsPrefabAsset(copy, CrystalPrefabPath);
+            Object.DestroyImmediate(copy);
+            Debug.Log("[MapLevelBuilder] Made the crystal-only Shard (" + kept.Count / 3 + " of " + tris.Length / 3 + " triangles kept).");
+            return CrystalPrefabPath;
+        }
+
         /// <summary>A material that uses the KayKit palette texture, tinted for the climate.</summary>
+        /// <summary>
+        /// A palette material whose green swatches (grass, leaves) are recoloured to <paramref name="green"/>
+        /// (e.g. snow white, frosted green); greys and browns stay. The recoloured palette is made once
+        /// as Assets/Art/Props/Palette/forest_texture_&lt;variant&gt;.png.
+        /// </summary>
+        private static Material RecolouredPaletteMat(string name, string variant, Color green, Color tint)
+        {
+            string folder = "Assets/Art/Props/Palette";
+            string texPath = folder + "/forest_texture_" + variant + ".png";
+            if (!System.IO.File.Exists(texPath))
+            {
+                if (!AssetDatabase.IsValidFolder(folder)) AssetDatabase.CreateFolder("Assets/Art/Props", "Palette");
+                var tex = new Texture2D(2, 2);
+                tex.LoadImage(System.IO.File.ReadAllBytes(PaletteTexturePath));
+                Color[] px = tex.GetPixels();
+                for (int i = 0; i < px.Length; i++)
+                {
+                    Color.RGBToHSV(px[i], out float h, out float s, out float v);
+                    if (h < 0.15f || h > 0.50f || s < 0.2f) continue; // not a green swatch
+                    // keep a little of the swatch's own light/dark so shading steps still read
+                    Color c = green * Mathf.Lerp(0.85f, 1.05f, v);
+                    c.a = px[i].a;
+                    px[i] = c;
+                }
+                tex.SetPixels(px);
+                System.IO.File.WriteAllBytes(texPath, tex.EncodeToPNG());
+                Object.DestroyImmediate(tex);
+                AssetDatabase.ImportAsset(texPath);
+            }
+            Material mat = ObbyTestSceneBuilder.GetOrCreateMaterial(name, tint);
+            mat.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
         private static Material PaletteMat(string name, Color tint)
         {
             Material mat = ObbyTestSceneBuilder.GetOrCreateMaterial(name, tint);
@@ -178,6 +311,32 @@ namespace WeatherForSale.EditorTools
             mat.EnableKeyword("_EMISSION");
             mat.SetColor("_EmissionColor", color * intensity);
             mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        /// <summary>A see-through unlit material (wind streaks, air columns). Falls back to opaque if the URP Unlit shader is missing.</summary>
+        private static Material AirMat(string name, Color color)
+        {
+            string path = ObbyTestSceneBuilder.MaterialFolder + "/" + name + ".mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend", 0f);
+            mat.SetFloat("_SrcBlend", 5f);  // SrcAlpha
+            mat.SetFloat("_DstBlend", 10f); // OneMinusSrcAlpha
+            mat.SetFloat("_ZWrite", 0f);
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)RenderQueue.Transparent;
+            mat.SetShaderPassEnabled("ShadowCaster", false);
+            mat.SetColor("_BaseColor", color);
             EditorUtility.SetDirty(mat);
             return mat;
         }
@@ -256,7 +415,8 @@ namespace WeatherForSale.EditorTools
         /// <paramref name="sizeX"/> x <paramref name="sizeZ"/> with its grass top at <paramref name="topY"/>
         /// and its base at <paramref name="bottomY"/>. Returns null when the model is missing.
         /// </summary>
-        private static GameObject GrassIsland(Context c, string name, float x, float topY, float z, float sizeX, float sizeZ, float bottomY)
+        private static GameObject GrassIsland(Context c, string name, float x, float topY, float z, float sizeX, float sizeZ, float bottomY,
+            Material material = null, Transform parent = null)
         {
             float height = Mathf.Max(0.5f, topY - bottomY);
             string model = GrassHills[GrassHills.Length - 1].model;
@@ -265,14 +425,24 @@ namespace WeatherForSale.EditorTools
                 if (h >= height * 0.75f) { model = m; break; }
             }
 
-            GameObject go = PlaceModel(model, Vector3.zero, Vector3.zero, Vector3.one, null, c.Scenery);
+            GameObject go = PlaceModel(model, Vector3.zero, Vector3.zero, Vector3.one, material != null ? material : c.PadMaterial,
+                parent != null ? parent : c.Scenery, material != null ? 1 : c.PadColorSet);
             if (go == null) return null;
+            // Walkable ground: Sam's shadow must land on it (scenery props stay unshadowed for the mobile budget).
+            foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true)) r.receiveShadows = true;
             Bounds b = RendererBounds(go);
             if (b.size.x < 0.01f || b.size.y < 0.01f || b.size.z < 0.01f) return go;
             go.transform.localScale = new Vector3(sizeX / b.size.x, height / b.size.y, sizeZ / b.size.z);
             b = RendererBounds(go);
             go.transform.position += new Vector3(x - b.center.x, topY - b.max.y, z - b.center.z);
             go.name = name;
+            if (c.PadCapMaterial != null)
+            {
+                // A thin snow / ice layer over the hill's top (the KayKit palettes have no white).
+                GameObject cap = Prim(PrimitiveType.Cube, name + "_Cap", go.transform.parent, Vector3.zero,
+                    new Vector3(Mathf.Max(0.1f, sizeX - 0.1f), 0.3f, Mathf.Max(0.1f, sizeZ - 0.1f)), c.PadCapMaterial);
+                cap.transform.position = new Vector3(x, topY + 0.03f - 0.15f, z);
+            }
             return go;
         }
 
@@ -397,7 +567,17 @@ namespace WeatherForSale.EditorTools
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
 
-            // Rock_4_C is a 3 m spire: centre it on the pickup position.
+            // The purple crystal cluster (Meshy model, its own glowing material), centred on the pickup.
+            float crystalWidth = 1.2f * (crystalScale / 0.4f);
+            if (PlacePrefab(CrystalOnlyPrefab(), visual.transform, position + Vector3.down * crystalWidth * 0.6f, crystalWidth) != null)
+            {
+                ShardPickup crystalPickup = root.AddComponent<ShardPickup>();
+                SetFields(crystalPickup, ("mapId", mapId.ToLowerInvariant()), ("visual", visual.transform));
+                c.Result.Shards.Add(crystalPickup);
+                return crystalPickup;
+            }
+
+            // Stand-in: Rock_4_C is a 3 m spire: centre it on the pickup position.
             float half = 1.5f * crystalScale;
             GameObject main = PlaceModel("Rock_4_C", position + Vector3.down * half, Vector3.zero,
                 new Vector3(crystalScale, crystalScale, crystalScale), glowMaterial, visual.transform);

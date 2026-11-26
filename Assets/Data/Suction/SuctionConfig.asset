@@ -20,10 +20,13 @@ MonoBehaviour:
   keys: 250000000f0000002100000012000000
   inputMode: 0
   tapButtonSize: 240
-  safeMarginSides: 140
+  safeMarginSides: 100
   safeMarginTop: 280
   safeMarginBottom: 140
   minJumpDistance: 300
+  promptAvoidPadding: 30
+  avoidTargetHeight: 1.6
+  avoidWidthFraction: 0.7
   panelInputDelaySeconds: 0.8
   cameraLocalPosition: {x: 1.25, y: 0.95, z: 3}
   cameraLookLocal: {x: -0.1, y: 1.05, z: 0.2}

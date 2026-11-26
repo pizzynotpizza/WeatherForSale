@@ -21,6 +21,11 @@ namespace WeatherForSale.EditorTools
         /// <summary>Water surface (top of the kill slab). Mushrooms float 1.5 - 3 m above it.</summary>
         private const float RiverTopY = -2.5f;
 
+        /// <summary>Width of the swinging Rainbell head model, metres (its hit sphere is BellHitRadius).</summary>
+        private const float RainbellHeadWidth = 1.15f;
+        /// <summary>Rainbell plants growing along the banks (visual only), metres wide.</summary>
+        private const float RainbellPlantWidth = 1.8f;
+
         // Level 2 tree climb: six branches on separate trees, zigzagging left/right.
         private const int ClimbBranches = 5;
         private const float ClimbRise = 0.9f;       // each branch this much higher than the last
@@ -88,6 +93,8 @@ namespace WeatherForSale.EditorTools
             public readonly Material BellRim = ObbyTestSceneBuilder.GetOrCreateMaterial("Obby_RF_RainbellRim", new Color(0.80f, 0.86f, 1.00f));
             public readonly Material Pillar = ObbyTestSceneBuilder.GetOrCreateMaterial("Obby_RF_PillarRock", new Color(0.46f, 0.52f, 0.50f));
             public readonly Material Shard = GlowMat("Obby_RF_Shard", new Color(0.62f, 0.22f, 1.00f), 2.2f);
+            public readonly Material ModelCapBounce = MushroomVariant("Orange", 0.075f, 1.0f, 1.05f);
+            public readonly Material ModelCapCollapse = MushroomVariant("Pale", 0.10f, 0.35f, 1.15f);
             public readonly Material PaletteTree = PaletteMat("Obby_RF_PaletteTree", new Color(0.86f, 1.00f, 0.90f));
             public readonly Material PaletteRock = PaletteMat("Obby_RF_PaletteMossRock", new Color(0.68f, 0.78f, 0.72f));
         }
@@ -206,6 +213,54 @@ namespace WeatherForSale.EditorTools
         /// A giant floating mushroom. Stand-in model: squashed sphere cap + cylinder stem + flat cream spots
         /// (no mushroom model in the project; see the report). Collider is a flat box matching the top of the dome.
         /// </summary>
+        // Meshy models made from the user's Rainforest asset sheet (design/ref/Rainforest Fantasy Game Asset Sheet.png).
+        private const string MushroomPrefabPath = "Assets/Art/Props/Rainforest/Mushroom/Mushroom.prefab";
+        private const string MushroomFolder = "Assets/Art/Props/Rainforest/Mushroom/";
+        private const string RainbellHeadPrefabPath = "Assets/Art/Props/Rainforest/Rainbell/RainbellHead.prefab";
+        private const string RainbellPlantPrefabPath = "Assets/Art/Props/Rainforest/Rainbell/Rainbell.prefab";
+        /// <summary>How far the model's dome sits below the walkable top (the dome's peak is above its rim).</summary>
+        private const float MushroomModelSink = 0.12f;
+
+        /// <summary>
+        /// The mushroom model's material with its red cap recoloured (hue / saturation / brightness), so bounce
+        /// and collapsing caps read differently. The recoloured texture is made once from the original.
+        /// Null when the original material is missing (the stand-in colours are used then).
+        /// </summary>
+        private static Material MushroomVariant(string variant, float hue, float satScale, float valScale)
+        {
+            string matPath = MushroomFolder + "Mushroom_" + variant + "_Mat.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (existing != null) return existing;
+            var baseMat = AssetDatabase.LoadAssetAtPath<Material>(MushroomFolder + "Mushroom_Mat.mat");
+            if (baseMat == null) return null;
+
+            string texPath = MushroomFolder + "Mushroom_BaseColor_" + variant + ".png";
+            if (!System.IO.File.Exists(texPath))
+            {
+                var tex = new Texture2D(2, 2);
+                tex.LoadImage(System.IO.File.ReadAllBytes(MushroomFolder + "Mushroom_BaseColor.png"));
+                Color[] px = tex.GetPixels();
+                for (int i = 0; i < px.Length; i++)
+                {
+                    Color.RGBToHSV(px[i], out float h, out float s, out float v);
+                    bool red = (h < 0.05f || h > 0.93f) && s > 0.35f;
+                    if (!red) continue;
+                    Color shifted = Color.HSVToRGB(hue, Mathf.Clamp01(s * satScale), Mathf.Clamp01(v * valScale));
+                    shifted.a = px[i].a;
+                    px[i] = shifted;
+                }
+                tex.SetPixels(px);
+                System.IO.File.WriteAllBytes(texPath, tex.EncodeToPNG());
+                UnityEngine.Object.DestroyImmediate(tex);
+                AssetDatabase.ImportAsset(texPath);
+                if (AssetImporter.GetAtPath(texPath) is TextureImporter ti) { ti.maxTextureSize = 1024; ti.SaveAndReimport(); }
+            }
+            var mat = new Material(baseMat) { name = "Mushroom_" + variant + "_Mat" };
+            mat.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
+            AssetDatabase.CreateAsset(mat, matPath);
+            return mat;
+        }
+
         private static GameObject Mushroom(Context c, RainforestMats m, string name, float x, float topY, float z,
             float sizeX, float sizeZ, MushroomKind kind)
         {
@@ -220,25 +275,39 @@ namespace WeatherForSale.EditorTools
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
 
-            Material capMaterial = kind == MushroomKind.Bounce ? m.CapBounce : kind == MushroomKind.Collapse ? m.CapCollapse : m.CapStatic;
-            float h = MushroomCapHeight;
-            Prim(PrimitiveType.Sphere, "Cap", visual.transform, new Vector3(0f, -h * 0.5f, 0f), new Vector3(sizeX, h, sizeZ), capMaterial);
-
-            float minSize = Mathf.Min(sizeX, sizeZ);
-            Prim(PrimitiveType.Cylinder, "Stem", visual.transform, new Vector3(0f, -h * 0.6f - MushroomStemLength * 0.5f, 0f),
-                new Vector3(minSize * 0.38f, MushroomStemLength * 0.5f, minSize * 0.38f), m.Stem);
-
-            int spots = kind == MushroomKind.Bounce ? 5 : 4;
-            float spotDiameter = 0.2f * minSize;
-            for (int i = 0; i < spots; i++)
+            // The Meshy mushroom: red (still), orange (bounce) or pale tan (collapses); stand-in primitives if missing.
+            Material modelMaterial = kind == MushroomKind.Bounce ? m.ModelCapBounce : kind == MushroomKind.Collapse ? m.ModelCapCollapse : null;
+            GameObject model = PlacePrefab(MushroomPrefabPath, visual.transform, Vector3.zero, Mathf.Max(sizeX, sizeZ),
+                modelMaterial, (x * 53f + z * 31f) % 360f);
+            if (model != null)
             {
-                float angle = (i * (360f / spots) + 25f * (i % 2)) * Mathf.Deg2Rad;
-                float rho = 0.5f + 0.06f * (i % 2); // fraction of the cap radius
-                float px = Mathf.Cos(angle) * rho * sizeX * 0.5f;
-                float pz = Mathf.Sin(angle) * rho * sizeZ * 0.5f;
-                float py = -h * 0.5f + h * 0.5f * Mathf.Sqrt(1f - rho * rho) + 0.015f;
-                Prim(PrimitiveType.Cylinder, "Spot", visual.transform, new Vector3(px, py, pz),
-                    new Vector3(spotDiameter, 0.01f, spotDiameter), m.Spot);
+                Bounds mb = RendererBounds(model);
+                model.transform.position += new Vector3(x, topY + MushroomModelSink - mb.max.y, z);
+            }
+
+            if (model == null)
+            {
+                Material capMaterial = kind == MushroomKind.Bounce ? m.CapBounce : kind == MushroomKind.Collapse ? m.CapCollapse : m.CapStatic;
+                float h = MushroomCapHeight;
+                Prim(PrimitiveType.Sphere, "Cap", visual.transform, new Vector3(0f, -h * 0.5f, 0f), new Vector3(sizeX, h, sizeZ), capMaterial);
+
+                float minSize = Mathf.Min(sizeX, sizeZ);
+                Prim(PrimitiveType.Cylinder, "Stem", visual.transform, new Vector3(0f, -h * 0.6f - MushroomStemLength * 0.5f, 0f),
+                    new Vector3(minSize * 0.38f, MushroomStemLength * 0.5f, minSize * 0.38f), m.Stem);
+
+                int spots = kind == MushroomKind.Bounce ? 5 : 4;
+                float spotDiameter = 0.2f * minSize;
+                for (int i = 0; i < spots; i++)
+                {
+                    float angle = (i * (360f / spots) + 25f * (i % 2)) * Mathf.Deg2Rad;
+                    float rho = 0.5f + 0.06f * (i % 2); // fraction of the cap radius
+                    float px = Mathf.Cos(angle) * rho * sizeX * 0.5f;
+                    float pz = Mathf.Sin(angle) * rho * sizeZ * 0.5f;
+                    float py = -h * 0.5f + h * 0.5f * Mathf.Sqrt(1f - rho * rho) + 0.015f;
+                    Prim(PrimitiveType.Cylinder, "Spot", visual.transform, new Vector3(px, py, pz),
+                        new Vector3(spotDiameter, 0.01f, spotDiameter), m.Spot);
+                }
+
             }
 
             if (kind == MushroomKind.Bounce)
@@ -441,9 +510,18 @@ namespace WeatherForSale.EditorTools
             hit.radius = BellHitRadius;
             KillVolume trap = bell.AddComponent<KillVolume>();
             c.Result.Hazards.Add(trap);
-            Prim(PrimitiveType.Sphere, "Dome", bell.transform, new Vector3(0f, 0.1f, 0f), new Vector3(1.1f, 1.0f, 1.1f), m.Bell);
-            Prim(PrimitiveType.Cylinder, "Rim", bell.transform, new Vector3(0f, -0.38f, 0f), new Vector3(1.4f, 0.05f, 1.4f), m.BellRim);
-            Prim(PrimitiveType.Sphere, "Clapper", bell.transform, new Vector3(0f, -0.5f, 0f), new Vector3(0.28f, 0.28f, 0.28f), c.In.WhiteMaterial);
+            // The Meshy Rainbell head hanging from the stem; stand-in primitives if missing.
+            if (PlacePrefab(RainbellHeadPrefabPath, bell.transform, bell.transform.position + Vector3.up * 0.55f, RainbellHeadWidth,
+                    hangFromTop: true) != null)
+            {
+                hit.center = new Vector3(0f, -0.1f, 0f);
+            }
+            else
+            {
+                Prim(PrimitiveType.Sphere, "Dome", bell.transform, new Vector3(0f, 0.1f, 0f), new Vector3(1.1f, 1.0f, 1.1f), m.Bell);
+                Prim(PrimitiveType.Cylinder, "Rim", bell.transform, new Vector3(0f, -0.38f, 0f), new Vector3(1.4f, 0.05f, 1.4f), m.BellRim);
+                Prim(PrimitiveType.Sphere, "Clapper", bell.transform, new Vector3(0f, -0.5f, 0f), new Vector3(0.28f, 0.28f, 0.28f), c.In.WhiteMaterial);
+            }
 
             var swing = pivot.AddComponent<PendulumSwing>();
             SetFields(swing,
@@ -552,6 +630,11 @@ namespace WeatherForSale.EditorTools
                     // Green grass bank (KayKit hill, original palette) under the trees and cliffs, just above the river.
                     GrassIsland(c, "Bank_" + (side < 0f ? "L_" : "R_") + z, side * (BankInnerX + BankWidth * 0.5f), BankTopY,
                         z + 6f, BankWidth, 12.2f, BankBottomY);
+
+                    // A Rainbell plant at the water's edge of the bank.
+                    PlacePrefab(RainbellPlantPrefabPath, c.Scenery,
+                        new Vector3(side * (BankInnerX + 1.5f + (float)rng.NextDouble() * 2f), BankTopY, z + 3f + (float)rng.NextDouble() * 4f),
+                        RainbellPlantWidth, null, side < 0f ? 0f : 180f);
 
                     // Giant trees well clear of the course and of the secret branches (x down to -16).
                     PlaceModel(trees[rng.Next(trees.Length)],

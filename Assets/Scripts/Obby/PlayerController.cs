@@ -45,6 +45,8 @@ namespace WeatherForSale.Obby
         private Collider lastGroundCollider;
         private RideableSurface lastGroundSurface;
         private Vector3 externalVelocity;
+        private float pendingLiftAcceleration;
+        private float pendingLiftMaxSpeed;
 
         /// <summary>The <see cref="RideableSurface"/> the player is standing on, or null (static ground or airborne).</summary>
         public RideableSurface CurrentSurface => surface;
@@ -115,6 +117,17 @@ namespace WeatherForSale.Obby
         public void AddExternalVelocity(Vector3 velocity)
         {
             externalVelocity += velocity;
+        }
+
+        /// <summary>
+        /// Adds upward acceleration for the next update only (wind vent): call it every frame while it
+        /// applies. It is added on top of gravity, so it must exceed gravity to lift; it never pushes
+        /// the vertical speed above <paramref name="maxUpSpeed"/>. A grounded player is lifted off the floor.
+        /// </summary>
+        public void AddLift(float acceleration, float maxUpSpeed)
+        {
+            pendingLiftAcceleration = Mathf.Max(pendingLiftAcceleration, acceleration);
+            pendingLiftMaxSpeed = Mathf.Max(pendingLiftMaxSpeed, maxUpSpeed);
         }
 
         /// <summary>
@@ -238,7 +251,9 @@ namespace WeatherForSale.Obby
             }
 
             // Horizontal velocity: accelerate toward the target (less control in the air).
-            float accel = config.groundAcceleration * (IsGrounded ? 1f : config.airControl);
+            // Slippery ground (ice) scales the ground acceleration down: the player keeps their momentum.
+            float grip = IsGrounded && surface != null ? surface.Traction : 1f;
+            float accel = config.groundAcceleration * (IsGrounded ? grip : config.airControl);
             float maxDelta = accel * dt;
             float targetX = moveDir.x * config.moveSpeed;
             float targetZ = moveDir.z * config.moveSpeed;
@@ -277,6 +292,18 @@ namespace WeatherForSale.Obby
             else
             {
                 verticalSpeed = Mathf.Max(verticalSpeed - config.gravity * dt, -config.maxFallSpeed);
+            }
+
+            // Wind vent lift (on top of gravity / the grounded stick).
+            if (pendingLiftAcceleration > 0f)
+            {
+                if (IsGrounded && verticalSpeed < 0f) verticalSpeed = 0f;
+                if (verticalSpeed < pendingLiftMaxSpeed)
+                {
+                    verticalSpeed = Mathf.Min(verticalSpeed + pendingLiftAcceleration * dt, pendingLiftMaxSpeed);
+                }
+                pendingLiftAcceleration = 0f;
+                pendingLiftMaxSpeed = 0f;
             }
 
             // Riding a moving surface: follow its movement since the last frame (plus its own drift).

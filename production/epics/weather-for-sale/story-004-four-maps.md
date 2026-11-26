@@ -68,13 +68,17 @@
 
 ## Files
 
-- Assets/Scenes/Maps/Rainforest_1.unity, Rainforest_2.unity
-- Assets/Scenes/Maps/Valley_1.unity, Valley_2.unity
-- Assets/Scenes/Maps/Desert_1.unity, Desert_2.unity
-- Assets/Scenes/Maps/Glacier_1.unity, Glacier_2.unity
-- Assets/Scripts/Obby/Obstacles/*.cs
-
----
+- Assets/Editor/MapLevelBuilder.cs, MapLevelBuilder.Rainforest.cs, MapLevelBuilder.Valley.cs, MapLevelBuilder.Desert.cs, MapLevelBuilder.Glacier.cs (layouts and scenery for all 8 levels)
+- Assets/Editor/ObbyTestSceneBuilder.cs (calls the layouts; soft shadows), Assets/Editor/SuctionStageBuilder.cs (open bottle, prompt off Sam)
+- Assets/Scripts/Obby/Obstacles/*.cs: RideableSurface, ObstacleUtility, BouncePad, CollapsingPlatform, PlatformMover, PendulumSwing, RollingSurface, ShardPickup, Spinner, WindGust, StreakDrift, UpdraftVent, RollingHazard, SinkingPlatform, IceSurface
+- Assets/Scripts/Obby/PlayerController.cs (platform carry, Launch, AddExternalVelocity, AddLift, ice traction), Assets/Scripts/Obby/ObbyLevelManager.cs (one hit = one fall)
+- Assets/Scripts/Suction/SuctionStage.cs, SuctionMinigame.cs, SuctionConfig.cs, Assets/Data/Suction/SuctionConfig.asset (weather waits on the dais, camera, pull pose, feet locked, no time limit)
+- Assets/Scripts/Core/GameLoopController.cs (suction time added to the run)
+- Assets/Data/ObbyLevelConfig_<Map>_1/_2.asset (120 s / 100 s)
+- Assets/Art/Props/Rainforest/ (Meshy mushroom, Rainbell, crystal + CrystalOnly), Assets/Art/Props/Log/, Assets/Art/Props/Desert/, Assets/Art/Props/Palette/, Assets/Art/Props/Bottle/Bottle_Open*
+- Assets/Settings/PC_RPAsset.asset, Mobile_RPAsset.asset (shadow bias)
+- Assets/Scenes/Obby_<Map>_1.unity, Obby_<Map>_2.unity (generated)
+- (no test file: waived at qa.level minimal)
 
 ## QA Test Cases
 
