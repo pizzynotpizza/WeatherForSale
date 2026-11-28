@@ -176,3 +176,7 @@ $RECYCLE.BIN/
 
 # === Raw Meshy AI downloads (imported copies live in Assets/Art) ===
 /meshy_output/
+
+# === Unity AI Toolkit scratch folder ===
+/Assets/AI Toolkit/
+/Assets/AI Toolkit.meta

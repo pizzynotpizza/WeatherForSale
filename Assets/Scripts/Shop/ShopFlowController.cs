@@ -70,6 +70,8 @@ namespace WeatherForSale.Shop
         [SerializeField] private MapSelectPanel mapPanel;
         [SerializeField] private LoadingScreen loadingScreen;
         [SerializeField] private AchievementBookPanel achievementBook;
+        [SerializeField, Tooltip("Saved progress (story 005): the Achievement book reads its unlocks.")]
+        private WeatherForSale.Progress.ProgressService progress;
         [SerializeField] private PauseMenu pauseMenu;
         [SerializeField, Tooltip("Short instruction shown at the top (open the map / hand over the bottle).")]
         private Text promptText;
@@ -81,6 +83,10 @@ namespace WeatherForSale.Shop
         private bool handedOver;
         private bool hopDone;
         private bool thanksDone;
+        private CanvasGroup dialogGroup, promptGroup;
+
+        /// <summary>Raised when every customer of the day has been served (the End of day shows).</summary>
+        public event System.Action DayEnded;
 
         /// <summary>Current phase.</summary>
         public ShopState State { get; private set; } = ShopState.Arriving;
@@ -139,6 +145,7 @@ namespace WeatherForSale.Shop
         {
             if (endOfDayTitle != null) endOfDayTitle.text = strings.endOfDayTitle;
             if (endOfDayBody != null) endOfDayBody.text = strings.endOfDayBody;
+            if (achievementBook != null && progress != null) achievementBook.SetSource(progress);
             ResumeFromSession();
         }
 
@@ -149,6 +156,9 @@ namespace WeatherForSale.Shop
                          || (mapPanel != null && mapPanel.IsOpen)
                          || State == ShopState.Loading;
             if (dialog != null) dialog.InputBlocked = modal;
+            // A panel on top (map, book, pause) hides the dialog box and the prompt, so neither shows through it.
+            SetHidden(ref dialogGroup, dialog != null ? dialog.gameObject : null, modal);
+            SetHidden(ref promptGroup, promptText != null ? promptText.gameObject : null, modal);
 
             if (pointer == null) return;
             pointer.SetEnabled(ShopClickTarget.MapBoard, !modal && (State == ShopState.Idle || State == ShopState.Talking));
@@ -333,7 +343,16 @@ namespace WeatherForSale.Shop
         {
             if (dialog != null) dialog.Hide();
             SetPrompt(null);
-            if (endOfDayPanel != null) endOfDayPanel.SetActive(true);
+            // Story Mode (story 006) takes over the end of the day; the panel is the fallback.
+            if (DayEnded != null) DayEnded.Invoke();
+            else if (endOfDayPanel != null) endOfDayPanel.SetActive(true);
+        }
+
+        private static void SetHidden(ref CanvasGroup group, GameObject target, bool hidden)
+        {
+            if (target == null) return;
+            if (group == null && !target.TryGetComponent(out group)) group = target.AddComponent<CanvasGroup>();
+            group.alpha = hidden ? 0f : 1f;
         }
 
         private void SetPrompt(string text)

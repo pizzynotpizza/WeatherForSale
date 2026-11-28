@@ -128,6 +128,78 @@ namespace WeatherForSale.EditorTools
             };
         }
 
+        /// <summary>A baked Meshy prop: its largest side is 1 unit, the pivot is the bottom centre; <see cref="Size"/> is its box.</summary>
+        public sealed class PropMesh
+        {
+            public Mesh Mesh;
+            public Material Material;
+            public Vector3 Size;
+        }
+
+        /// <summary>The turn that stands up a Meshy text-to-3D model that went through remesh (those come out Z-up).</summary>
+        public static readonly Vector3 ZUp = new Vector3(-90f, 0f, 0f);
+
+        private static readonly Dictionary<string, PropMesh> PropCache = new Dictionary<string, PropMesh>();
+        private static int propCacheFrame = -1;
+
+        /// <summary>
+        /// Bakes <c>Assets/Art/Props/&lt;folder&gt;/&lt;name&gt;.fbx</c> (with <c>&lt;name&gt;_BaseColor.png</c>) turned by
+        /// <paramref name="euler"/>, scaled so its largest side is 1 and with its pivot at the bottom centre, into
+        /// <c>Generated/</c>. Baked once per build. Null when the model is missing (callers keep their stand-in).
+        /// </summary>
+        public static PropMesh BakeProp(string folder, string name, Vector3 euler)
+        {
+            if (propCacheFrame != Time.frameCount)
+            {
+                PropCache.Clear();
+                propCacheFrame = Time.frameCount;
+            }
+            string key = folder + "/" + name + euler;
+            if (PropCache.TryGetValue(key, out PropMesh cached) && (cached == null || cached.Mesh != null)) return cached;
+
+            string dir = "Assets/Art/Props/" + folder + "/";
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(dir + name + ".fbx") == null
+                || !TryReadModel(dir + name + ".fbx", out Vector3[] pos, out Vector2[] uv, out int[] tris))
+            {
+                PropCache[key] = null;
+                return null;
+            }
+            Quaternion q = Quaternion.Euler(euler);
+            for (int i = 0; i < pos.Length; i++) pos[i] = q * pos[i];
+            var b = new Bounds(pos[0], Vector3.zero);
+            foreach (Vector3 p in pos) b.Encapsulate(p);
+            float scale = 1f / Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+            var pivot = new Vector3(b.center.x, b.min.y, b.center.z);
+
+            var builder = new MeshBuilder();
+            for (int t = 0; t < tris.Length; t++) builder.Add((pos[tris[t]] - pivot) * scale, uv[tris[t]]);
+            string suffix = euler == Vector3.zero ? "" : "_" + Mathf.RoundToInt(euler.x) + "_" + Mathf.RoundToInt(euler.y) + "_" + Mathf.RoundToInt(euler.z);
+            var prop = new PropMesh
+            {
+                Mesh = builder.Save(dir + "Generated/" + name + suffix + "_Baked.asset", name + suffix + "_Baked"),
+                Material = GetMaterial(dir + "Generated/" + name + "_Mat.mat", dir + name + "_BaseColor.png"),
+                Size = b.size * scale,
+            };
+            PropCache[key] = prop;
+            return prop;
+        }
+
+        /// <summary>
+        /// Places a baked prop under <paramref name="parent"/>: its bottom centre at <paramref name="localBottomCentre"/>,
+        /// stretched to <paramref name="size"/> (metres along local X, Y, Z; a 0 component scales with the others, so
+        /// (0, 0, 2) fits the depth and keeps the proportions). Visual only, no collider.
+        /// </summary>
+        public static GameObject PlaceProp(PropMesh prop, string name, Transform parent, Vector3 localBottomCentre, Vector3 size, Vector3 localEuler = default)
+        {
+            Vector3 s = prop.Size;
+            float uniform = size.x > 0f ? size.x / s.x : size.y > 0f ? size.y / s.y : size.z / s.z;
+            var scale = new Vector3(size.x > 0f ? size.x / s.x : uniform, size.y > 0f ? size.y / s.y : uniform, size.z > 0f ? size.z / s.z : uniform);
+            GameObject go = AddMeshChild(name, parent, prop.Mesh, prop.Material, localBottomCentre);
+            go.transform.localRotation = Quaternion.Euler(localEuler);
+            go.transform.localScale = scale;
+            return go;
+        }
+
         /// <summary>Adds a mesh renderer child (no collider) showing <paramref name="mesh"/>.</summary>
         public static GameObject AddMeshChild(string name, Transform parent, Mesh mesh, Material material, Vector3 localPosition)
         {
@@ -154,6 +226,14 @@ namespace WeatherForSale.EditorTools
             {
                 Debug.LogWarning("[MeshyPropBaker] " + path + " is missing; using the primitive stand-in.");
                 return false;
+            }
+            if (!mf.sharedMesh.isReadable && AssetImporter.GetAtPath(path) is ModelImporter importer)
+            {
+                // New Meshy downloads import with Read/Write off; the bake needs the vertices.
+                importer.isReadable = true;
+                importer.SaveAndReimport();
+                model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                mf = model.GetComponentInChildren<MeshFilter>();
             }
             // Import transform (Meshy FBX: root at 0.01 with a -90° X child), normalised to metres by the span later.
             Matrix4x4 m = model.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;

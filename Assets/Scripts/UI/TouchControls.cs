@@ -33,6 +33,10 @@ namespace WeatherForSale.UI
         private RectTransform stickKnob;
         [SerializeField, Tooltip("Jump button; a press inside this rect triggers a jump.")]
         private RectTransform jumpButton;
+        [SerializeField, Tooltip("Jump button image; shows the pressed sprite while held (optional).")]
+        private Image jumpImage;
+        [SerializeField, Tooltip("Jump button sprite while it is held (optional).")]
+        private Sprite jumpPressedSprite;
         [SerializeField, Tooltip("Where the stick base rests when not touched, in this rect's local space.")]
         private Vector2 stickRestPosition = new Vector2(-650f, -300f);
 
@@ -50,6 +54,7 @@ namespace WeatherForSale.UI
         private Image raycastImage;
         private bool visible;
 
+        private Sprite jumpNormalSprite;
         private int stickPointer = NoPointer;
         private int jumpPointer = NoPointer;
         private int lookPointer = NoPointer;
@@ -107,6 +112,7 @@ namespace WeatherForSale.UI
                 jumpPointer = id;
                 player.RequestJump();
                 player.SetVirtualJumpHeld(true); // held: the glide climbs
+                SetJumpPressed(true);
                 return;
             }
 
@@ -189,6 +195,7 @@ namespace WeatherForSale.UI
             {
                 jumpPointer = NoPointer;
                 player.SetVirtualJumpHeld(false);
+                SetJumpPressed(false);
             }
             else if (id == lookPointer)
             {
@@ -215,6 +222,14 @@ namespace WeatherForSale.UI
                 player.SetVirtualJumpHeld(false);
             }
             ResetStickVisual();
+            SetJumpPressed(false);
+        }
+
+        private void SetJumpPressed(bool pressed)
+        {
+            if (jumpImage == null || jumpPressedSprite == null) return;
+            if (jumpNormalSprite == null) jumpNormalSprite = jumpImage.sprite;
+            jumpImage.sprite = pressed ? jumpPressedSprite : jumpNormalSprite;
         }
 
         private void ResetStickVisual()

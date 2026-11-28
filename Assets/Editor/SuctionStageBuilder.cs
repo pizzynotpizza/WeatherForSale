@@ -15,7 +15,7 @@ namespace WeatherForSale.EditorTools
     /// the in-place suction stage (SuctionSpot, weather orb, two streak particle systems, the
     /// <see cref="SuctionStage"/> and <see cref="SuctionMinigame"/>) and its UI on the obby canvas
     /// (key prompt lower-left, Collecting gauge lower-right, tap area, Weather Collected screen,
-    /// Complete screen), styled with the Cozy UI pack like the shop. Creates SuctionConfig,
+    /// Complete screen), styled with the game UI sheet like the shop. Creates SuctionConfig,
     /// SuctionStrings and the orb / streak materials when missing (designer tuning is kept).
     /// Replaces the earlier separate Suction scene builder.
     /// Implements: story-003 change request (suction in place at the end of level 2).
@@ -35,18 +35,18 @@ namespace WeatherForSale.EditorTools
         /// <summary>The cork is the top of the model: triangles above this fraction of its height (model +Z is up) are removed.</summary>
         private const float CorkStartFraction = 0.875f;
 
-        private const string Cozy = "Assets/Cozy_UI_Pack_doboui/";
-        private const string WoodPanelPath = Cozy + "Containers/WoodenContainers/WoodenContainer1.png";
-        private const string HeaderPath = Cozy + "Headers/Header1.png";
-        private const string LabelPath = Cozy + "Labels/Label1.png";
-        private const string RoundWoodPath = Cozy + "Buttons/Round/RoundButton1_wood.png";
-        private const string RoundCreamPath = Cozy + "Buttons/Round/RoundButton1_cream.png";
-        private const string ButtonBluePath = Cozy + "Buttons/Inflated/InflatedButton1_blue.png";
-        private const string BarBackgroundPath = Cozy + "ProgressBars/ProgressBar/ProgressBarBackground.png";
-        private const string BarFillPath = Cozy + "ProgressBars/ProgressBar/ProgressBar1.png";
-        private const string IconStarPath = Cozy + "Icons/IconsDefault/128px/IconDefault8_128px.png";
-        private const string IconStopwatchPath = Cozy + "Icons/IconsDefault/128px/IconDefault10_128px.png";
-        private const string IconGemPath = Cozy + "Icons/IconsDefault/128px/IconDefault23_128px.png";
+        private const string Sheet = "Assets/Art/UI/Sheet/"; // the game's own UI sheet (sliced from design/ref)
+        private const string WoodPanelPath = Sheet + "PanelLarge.png";
+        private const string HeaderPath = Sheet + "RibbonBlue.png";
+        private const string LabelPath = Sheet + "CapsuleWood.png";
+        private const string RoundWoodPath = Sheet + "RoundWood.png";
+        private const string RoundCreamPath = Sheet + "KeyCap.png";
+        private const string ButtonBluePath = Sheet + "BtnBlueA.png"; // UI v2: leaf green (the file name is from the old sheet)
+        private const string BarBackgroundPath = "Assets/Art/UI/Boss/PlayerFrame.png";
+        private const string BarFillPath = "Assets/Art/UI/Boss/PlayerFillGreen.png";
+        private const string IconStarPath = Sheet + "IconStar.png";
+        private const string IconStopwatchPath = Sheet + "IconStopwatch.png"; // UI v2 stopwatch
+        private const string IconGemPath = Sheet + "IconShard.png";
 
         private static readonly Color DarkBrownText = new Color(0.30f, 0.17f, 0.09f);
         private static readonly Color OutlineColor = new Color(0.2f, 0.12f, 0.06f, 0.9f);
@@ -117,6 +117,16 @@ namespace WeatherForSale.EditorTools
             orbRenderer.sharedMaterial = orbMaterial;
             orbRenderer.shadowCastingMode = ShadowCastingMode.Off;
             orbRenderer.receiveShadows = false;
+            // Meshy orb for this map (Assets/Art/Props/WeatherOrbs/): shown instead of the tinted sphere,
+            // centred on the orb so the stage's sizing (localScale = diameter) still applies. Missing: the sphere stays.
+            MeshyPropBaker.PropMesh orbModel = OrbModelFor(inputs.MapId);
+            if (orbModel != null)
+            {
+                MeshyPropBaker.PlaceProp(orbModel, "OrbModel", orb.transform, new Vector3(0f, -orbModel.Size.y * 0.5f, 0f),
+                    new Vector3(0f, orbModel.Size.y, 0f)).GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+                orbRenderer.enabled = false;
+                orbRenderer = null; // the model keeps its own colours (no map tint)
+            }
             orb.SetActive(false);
 
             ParticleSystem surround = CreateStreaks("Streaks_Surround", root.transform, streakMaterial, config);
@@ -146,9 +156,23 @@ namespace WeatherForSale.EditorTools
             return stage;
         }
 
+        /// <summary>The Meshy weather orb for a map id (Rainforest rain, Valley wind, Desert sun, Glacier snow), or null.</summary>
+        private static MeshyPropBaker.PropMesh OrbModelFor(string mapId)
+        {
+            string name = (mapId ?? "").ToLowerInvariant() switch
+            {
+                "rainforest" => "OrbRain",
+                "valley" => "OrbWind",
+                "desert" => "OrbSun",
+                "glacier" => "OrbSnow",
+                _ => null,
+            };
+            return name == null ? null : MeshyPropBaker.BakeProp("WeatherOrbs", name, MeshyPropBaker.ZUp);
+        }
+
         // ------------------------------------------------------------------ particles
 
-        private static ParticleSystem CreateStreaks(string name, Transform parent, Material material, SuctionConfig config)
+        internal static ParticleSystem CreateStreaks(string name, Transform parent, Material material, SuctionConfig config)
         {
             GameObject go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -208,9 +232,9 @@ namespace WeatherForSale.EditorTools
             RectTransform keyCap = CreateRect("KeyCap", keyPrompt);
             PlaceCorner(keyCap, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(161f, 172f));
             AddImage(keyCap, sprites.RoundWood, Color.white, false, false).preserveAspect = true;
-            Text keyText = CreateText("Key", keyCap, font, "W", 96, TextAnchor.MiddleCenter, Color.white);
-            Stretch(keyText.rectTransform);
-            keyText.rectTransform.offsetMin = new Vector2(0f, 15f); // the round button has a lip at the bottom
+            // Centred on the round v2 button face.
+            Text keyText = CreateText("Key", keyCap, font, "W", 64, TextAnchor.MiddleCenter, Color.white);
+            PlaceCentered(keyText.rectTransform, new Vector2(0f, 3f), new Vector2(110f, 110f));
             keyText.fontStyle = FontStyle.Bold;
             keyText.gameObject.AddComponent<Outline>().effectColor = OutlineColor;
 
@@ -229,14 +253,14 @@ namespace WeatherForSale.EditorTools
             titleOutline.effectColor = OutlineColor;
             titleOutline.effectDistance = new Vector2(3f, -3f);
 
-            // Gauge, top centre under the title, percent inside the bar
+            // Gauge, top centre under the title (no percent: the fill says it)
             RectTransform bar = CreateRect("GaugeBar", hud);
-            PlaceCorner(bar, new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(720f, 72f));
+            PlaceCorner(bar, new Vector2(0.5f, 1f), new Vector2(0f, -165f), new Vector2(990f, 99f));
             AddImage(bar, sprites.BarBackground, Color.white, true, false);
             RectTransform fillArea = CreateRect("FillArea", bar);
             Stretch(fillArea);
-            fillArea.offsetMin = new Vector2(8f, 8f);
-            fillArea.offsetMax = new Vector2(-8f, -8f);
+            fillArea.offsetMin = new Vector2(12f, 12f);
+            fillArea.offsetMax = new Vector2(-12f, -12f);
             RectTransform fill = CreateRect("Fill", fillArea);
             fill.anchorMin = Vector2.zero;
             fill.anchorMax = new Vector2(0f, 1f); // SuctionMinigame drives anchorMax.x = gauge 0..1
@@ -244,10 +268,6 @@ namespace WeatherForSale.EditorTools
             fill.offsetMin = Vector2.zero;
             fill.offsetMax = Vector2.zero;
             AddImage(fill, sprites.BarFill, Color.white, true, false);
-            Text percent = CreateText("Percent", bar, font, "0%", 44, TextAnchor.MiddleCenter, Color.white);
-            Stretch(percent.rectTransform);
-            percent.fontStyle = FontStyle.Bold;
-            percent.gameObject.AddComponent<Outline>().effectColor = OutlineColor;
 
             // Touch tap button (positioned at runtime inside the safe margins of TapArea)
             RectTransform tapArea = CreateRect("TapArea", hud);
@@ -336,7 +356,7 @@ namespace WeatherForSale.EditorTools
             // --- wire the minigame
             SetRefs(minigame,
                 ("config", config), ("strings", strings), ("loop", loop), ("hudRoot", hud.gameObject),
-                ("gaugeFill", fill), ("gaugePercentText", percent),
+                ("gaugeFill", fill),
                 ("keyPromptRoot", keyPrompt.gameObject), ("keyCapText", keyText), ("promptText", prompt), ("titleText", title),
                 ("tapButton", tap), ("tapButtonLabel", tapLabel),
                 ("collectedScreen", collected), ("completePanel", complete));
@@ -345,13 +365,32 @@ namespace WeatherForSale.EditorTools
         private static Text CreateHeader(RectTransform card, Sprite headerSprite, Font font, string title)
         {
             RectTransform header = CreateRect("Header", card);
-            PlaceCentered(header, new Vector2(0f, 420f), new Vector2(760f, 150f));
+            PlaceCentered(header, new Vector2(0f, 420f), HeaderSize);
             AddImage(header, headerSprite, Color.white, false, false);
-            Text text = CreateText("Title", header, font, title, 56, TextAnchor.MiddleCenter, DarkBrownText);
+            // White with a dark outline (readable on the blue ribbon), kept inside the ribbon's flat face:
+            // its upper part, clear of the star ends; long titles shrink to fit.
+            Text text = CreateText("Title", header, font, title, 50, TextAnchor.MiddleCenter, Color.white);
             Stretch(text.rectTransform);
-            text.rectTransform.offsetMin = new Vector2(0f, 45f); // the ribbon's flat face is its upper part
+            PlaceOnHeaderFace(text.rectTransform);
             text.fontStyle = FontStyle.Bold;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 28;
+            text.resizeTextMaxSize = 50;
+            Outline outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = OutlineColor;
+            outline.effectDistance = new Vector2(3f, -3f);
             return text;
+        }
+
+        /// <summary>Header signboard size: the v2 sprite's aspect (1200 x 369).</summary>
+        internal static readonly Vector2 HeaderSize = new Vector2(760f, 234f);
+
+        /// <summary>Fits a title inside the header signboard's flat navy face (x 99-1101, y 143-298 of 1200 x 369).</summary>
+        internal static void PlaceOnHeaderFace(RectTransform rt)
+        {
+            Stretch(rt);
+            rt.offsetMin = new Vector2(HeaderSize.x * 110f / 1200f, HeaderSize.y * (369f - 292f) / 369f);
+            rt.offsetMax = new Vector2(-HeaderSize.x * 110f / 1200f, -HeaderSize.y * 150f / 369f);
         }
 
         private static Image CreateIcon(string name, Transform parent, Sprite sprite, Vector2 position)
@@ -458,7 +497,7 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ assets
 
-        private static SuctionConfig GetOrCreateConfig()
+        internal static SuctionConfig GetOrCreateConfig()
         {
             SuctionConfig config = AssetDatabase.LoadAssetAtPath<SuctionConfig>(ConfigPath);
             if (config != null) return config; // keep designer tuning
@@ -488,7 +527,7 @@ namespace WeatherForSale.EditorTools
         /// (every triangle above <see cref="CorkStartFraction"/> of the model's height). The original model
         /// and prefab are not changed. Returns the original when the copy cannot be made.
         /// </summary>
-        private static GameObject GetOrCreateOpenBottlePrefab()
+        internal static GameObject GetOrCreateOpenBottlePrefab()
         {
             var existing = AssetDatabase.LoadAssetAtPath<GameObject>(OpenBottlePrefabPath);
             if (existing != null) return existing;
@@ -537,7 +576,7 @@ namespace WeatherForSale.EditorTools
         }
 
         /// <summary>URP Particles/Unlit, additive, untextured: thin glowing streaks (colour comes from the particles).</summary>
-        private static Material GetOrCreateStreakMaterial()
+        internal static Material GetOrCreateStreakMaterial()
         {
             Material mat = GetOrCreateMaterial(StreakMaterialPath, "Universal Render Pipeline/Particles/Unlit");
             MakeTransparent(mat, true);
@@ -605,7 +644,8 @@ namespace WeatherForSale.EditorTools
         /// <summary>Same import rules as ShopSceneBuilder (Sprite, no mipmaps, full-rect mesh for 9-slicing).</summary>
         private static Sprite LoadSprite(string path, Vector4 border)
         {
-            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            // The game UI sheet keeps the borders set by UiSheetImporter.
+            var importer = path.StartsWith("Assets/Art/UI/") ? null : AssetImporter.GetAtPath(path) as TextureImporter;
             if (importer != null)
             {
                 bool changed = false;

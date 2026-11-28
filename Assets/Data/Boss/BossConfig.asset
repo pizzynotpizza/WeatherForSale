@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b194caeda7ba5340bf40ddc6c65589a, type: 3}
+  m_Name: BossConfig
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Boss.BossConfig
+  hitImmuneSeconds: 0.6
+  fallDeathDepth: 4
+  bossName: Tempest
+  fightSeconds: 180
+  bossMaxHp: 5
+  introSeconds: 2.5
+  phase2AtHp: 4
+  phase3AtHp: 2
+  phase1Patterns:
+  - {fileID: 11400000, guid: 768c7de833e8b914594510f96ac9c365, type: 2}
+  patterns:
+  - {fileID: 11400000, guid: 768c7de833e8b914594510f96ac9c365, type: 2}
+  - {fileID: 11400000, guid: c06116454135e7a4d88bc4a7af6a8daa, type: 2}
+  - {fileID: 11400000, guid: 5b3f2f40d62a79b4fb4ca67824992688, type: 2}
+  - {fileID: 11400000, guid: 4087f22a72035b049aae62eb79cd9133, type: 2}
+  attacksPerRound: 010000000200000003000000
+  phaseDifficulty:
+  - 1
+  - 1.5
+  - 2.2
+  pauseBetweenAttacks: 1
+  painSeconds: 2.2
+  dropFromPhase: 3
+  itemDropRadius: 9
+  boostGainMultiplier: 1.8
+  boostExtraSeconds: 5
+  tiredWarnSeconds: 0.9
+  suctionSeconds: 12
+  suctionGainMultiplier: 2.2
+  suctionDecayMultiplier: 0.3
+  suctionStreakRadius: 4
+  suctionStreakColor: {r: 0.8, g: 0.5, b: 1, a: 0.9}
+  bottleColour: {r: 0.72, g: 0.45, b: 1, a: 1}
+  arenaRadius: 22
+  bossHoverHeight: 6.5
+  bossTiredHeight: 6.5
+  introBanner: Tempest is coming!
+  tiredBanner: Tempest is tired! Collect it!
+  recoveredBanner: It got away!
+  phase2Banner: Tempest is angry!
+  phase3Banner: Tempest is furious!
+  itemBanner: Storm Crystal! The next suction is easier.
+  boostedTitle: Boosted! Collect the Tempest!
+  promptFormat: Press {0}!
+  tapLabel: TAP!
+  collectingTitle: Collect the Tempest!
+  gameOverTitle: Game Over
+  timeUpTitle: Time's Up!
+  restartLabel: Try Again
+  victoryTitle: Boss Sealed!
+  victoryButton: Continue

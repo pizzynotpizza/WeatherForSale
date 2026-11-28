@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4bc2fc44b67463f47a3c4df3da592b15, type: 3}
+  m_Name: Pattern_WindSweep
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Boss.WindSweepPattern
+  displayName: Wind sweep
+  telegraphSeconds: 1.2
+  knockback: 28
+  sweeps: 1
+  crossSeconds: 3.4
+  thickness: 1.2
+  height: 0.9

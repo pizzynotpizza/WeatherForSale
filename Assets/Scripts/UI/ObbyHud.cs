@@ -30,6 +30,14 @@ namespace WeatherForSale.UI
         [SerializeField] private Text completeSummaryText;
         [SerializeField] private Button completeRestartButton;
 
+        [Header("Checkpoint popup")]
+        [SerializeField, Tooltip("Text under the timer that pops up when a checkpoint is reached.")]
+        private Text checkpointPopupText;
+        [SerializeField] private string checkpointPopupMessage = "Checkpoint!";
+        [SerializeField, Min(0.1f), Tooltip("Seconds the popup stays (it fades out over the last third).")]
+        private float checkpointPopupSeconds = 1.6f;
+
+        private float popupTimeLeft;
         private int shownSeconds = -1;
         private bool shownWarning;
 
@@ -37,6 +45,8 @@ namespace WeatherForSale.UI
         {
             level.StateChanged += OnStateChanged;
             level.DeathCountChanged += OnDeathCountChanged;
+            level.CheckpointReached += OnCheckpointReached;
+            if (checkpointPopupText != null) checkpointPopupText.gameObject.SetActive(false);
 
             if (gameOverRestartButton != null) gameOverRestartButton.onClick.AddListener(level.RestartLevel);
             if (completeRestartButton != null) completeRestartButton.onClick.AddListener(level.RestartLevel);
@@ -51,6 +61,7 @@ namespace WeatherForSale.UI
             if (level == null) return;
             level.StateChanged -= OnStateChanged;
             level.DeathCountChanged -= OnDeathCountChanged;
+            level.CheckpointReached -= OnCheckpointReached;
             if (gameOverRestartButton != null) gameOverRestartButton.onClick.RemoveListener(level.RestartLevel);
             if (completeRestartButton != null) completeRestartButton.onClick.RemoveListener(level.RestartLevel);
         }
@@ -58,6 +69,7 @@ namespace WeatherForSale.UI
         private void Update()
         {
             RefreshTimer(false);
+            UpdatePopup();
         }
 
         private void RefreshTimer(bool force)
@@ -80,15 +92,41 @@ namespace WeatherForSale.UI
             }
         }
 
+        private void OnCheckpointReached(Checkpoint checkpoint)
+        {
+            if (checkpointPopupText == null) return;
+            checkpointPopupText.text = checkpointPopupMessage;
+            checkpointPopupText.gameObject.SetActive(true);
+            popupTimeLeft = checkpointPopupSeconds;
+        }
+
+        /// <summary>Counts the popup down: a small pop in scale at first, a fade over the last third.</summary>
+        private void UpdatePopup()
+        {
+            if (checkpointPopupText == null || popupTimeLeft <= 0f) return;
+            popupTimeLeft -= Time.deltaTime;
+            float t = 1f - popupTimeLeft / checkpointPopupSeconds;
+            float scale = t < 0.15f ? Mathf.Lerp(1.4f, 1f, t / 0.15f) : 1f;
+            checkpointPopupText.rectTransform.localScale = Vector3.one * scale;
+            Color col = checkpointPopupText.color;
+            col.a = Mathf.Clamp01(popupTimeLeft / (checkpointPopupSeconds / 3f));
+            checkpointPopupText.color = col;
+            if (popupTimeLeft <= 0f) checkpointPopupText.gameObject.SetActive(false);
+        }
+
         private void OnDeathCountChanged(int count)
         {
             if (fallsText != null) fallsText.text = "Falls: " + count;
         }
 
+        private bool? hasSuction;
+
         private void OnStateChanged(ObbyLevelState state)
         {
             if (gameOverPanel != null) gameOverPanel.SetActive(state == ObbyLevelState.GameOver);
-            if (completePanel != null) completePanel.SetActive(state == ObbyLevelState.Completed);
+            // A map that ends in the suction goes straight there: no "Level complete" panel flashing first.
+            hasSuction ??= FindAnyObjectByType<WeatherForSale.Suction.SuctionStage>() != null;
+            if (completePanel != null) completePanel.SetActive(state == ObbyLevelState.Completed && !hasSuction.Value);
 
             if (state == ObbyLevelState.Completed && completeSummaryText != null)
             {

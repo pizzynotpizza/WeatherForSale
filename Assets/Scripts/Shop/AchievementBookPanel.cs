@@ -33,7 +33,7 @@ namespace WeatherForSale.Shop
         [SerializeField, Tooltip("Optional component implementing IAchievementSource (story 005).")]
         private MonoBehaviour sourceBehaviour;
         [SerializeField] private Color unlockedColor = new Color(0.33f, 0.2f, 0.12f);
-        [SerializeField] private Color lockedColor = new Color(0.33f, 0.2f, 0.12f, 0.4f);
+        [SerializeField] private Color lockedColor = new Color(0.33f, 0.2f, 0.12f, 0.55f);
 
         private IAchievementSource source;
 

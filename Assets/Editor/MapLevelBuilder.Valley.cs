@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace WeatherForSale.EditorTools
     /// Level 1: walk off the cliff-top start pad into a glide (GlideZone / GlideMode) and fly a winding,
     /// walled sandstone canyon over a river: three glide legs (about 44 + 60 + 39 m) split by two landing
     /// ledges (the checkpoints), with hawks (Hawk: loops, figure-8s, dives, stacked pairs), pinches, stone
-    /// arches and an overhang to fly under, rock spires, an updraft column, and the Shard in a side alcove
+    /// arches and an overhang to fly under, rock spires, and the Shard in a side alcove
     /// behind a circling hawk. Walls, arches, spires, ledge rock and the river are kill triggers.
     /// Level 2: pads are sandstone mesa pillars going down into a cloud-filled chasm; fans, vents and two
     /// long suspension bridges with an irregular swing (IrregularSwing) and a static rock between them.
@@ -80,11 +81,19 @@ namespace WeatherForSale.EditorTools
 
         /// <summary>Length of one bridge plank along the deck, metres. A missing plank pair is a 1.2 m hole you must hop.</summary>
         private const float ValleyPlankLength = 0.6f;
+        /// <summary>Swing of each bridge section, degrees (steady): reach about 2.7 m on the 12 m ropes.</summary>
+        private const float Valley2PairSwingDegrees = 13f;
+        /// <summary>Gap left between the two sections of a zone when they meet, metres (they never overlap).</summary>
+        private const float Valley2PairMeetGap = 0.15f;
+        /// <summary>Meshy bridge plank drawn this tall (board plus its rope posts), metres.</summary>
+        private const float ValleyPlankModelHeight = 0.5f;
+        /// <summary>Height of the board's top above the plank model's bottom, metres (it sits on the deck surface).</summary>
+        private const float ValleyPlankModelBoardTop = 0.27f;
 
         // ---- level 2 tuning ----
 
         /// <summary>Level 2 bridge gust speed, m/s (decks are 2.2 m wide).</summary>
-        private const float Valley2BridgeGustSpeed = 3.4f;
+        private const float Valley2BridgeGustSpeed = 1.5f; // play-test: the gust was too strong (was 3.4)
         /// <summary>Level 2 bridges: rope length (metres). Longer ropes = a longer, slower arc.</summary>
         private const float Valley2BridgeRope = 12f;
         /// <summary>Level 2 bridges: deck end to pad edge at the widest swing, metres (the deck never touches a pad).</summary>
@@ -261,24 +270,28 @@ namespace WeatherForSale.EditorTools
             // dive to feet <= -0.4), then a figure-8 pair at two heights before the first ledge (top -2: climb back).
             GlideLaunch(c, m, "Launch_1", 0f, 0f, 3f, glider);
             AddHawk(c, m, "Hawk_1_Loop", new Vector3(2.5f, 0f, 21f), HawkPattern.Loop, new Vector3(4.5f, 1.5f, 2.5f), 4.2f, 0f);
+            // Extra hawks (user: more to dodge): a sweep right after launch.
+            AddHawkInCanyon(c, m, "Hawk_1_SweepEarly", 12f, 0f, -1.4f, HawkPattern.Sweep, new Vector3(4.0f, 0.4f, 0.8f), 2.8f, 0.4f);
             StoneArch(c, m, Valley1Canyon, "Arch_1", 31.5f, 3f, 0.8f, 9f);
             AddHawk(c, m, "Hawk_1_PairLow", new Vector3(-0.35f, -3.2f, 40.5f), HawkPattern.FigureEight, new Vector3(3.0f, 0.5f, 2.0f), 4.4f, 0f);
             AddHawk(c, m, "Hawk_1_PairHigh", new Vector3(-0.35f, 0.6f, 40.5f), HawkPattern.FigureEight, new Vector3(3.0f, 0.5f, 2.0f), 4.4f, 2.2f);
             GlideLedge(c, m, Valley1Canyon, "Checkpoint_1", -2f, -2f, 54f, -2f + GlideCeilingAboveLaunch, false); // apron z 47 - 51, pad 51 - 57
 
             // Leg 2 (launch top -2, ceiling 0.5): a hawk diving across the path, the Shard alcove on the left
-            // (z 78 - 93, Shard low at y -7 behind a circling hawk), an updraft to climb back, then a pinch with a
+            // (z 78 - 93, Shard low at y -7 behind a circling hawk; climb back by gliding up), then a pinch with a
             // rock overhang from the right: thread the 2 m slot on the left, or dive under it (feet <= -2.6).
             float ceiling2 = -2f + GlideCeilingAboveLaunch;
             GlideLaunch(c, m, "Launch_2", -2f, -2f, 57f, glider);
+            AddHawkInCanyon(c, m, "Hawk_2_SweepEarly", 63f, 0f, -3.4f, HawkPattern.Sweep, new Vector3(4.0f, 0.4f, 0.8f), 2.6f, 1.1f);
             AddHawk(c, m, "Hawk_2_Dive", new Vector3(1.0f, -2.0f, 70f), HawkPattern.Dive, new Vector3(4.5f, 2.3f, -5f), 3.4f, 0f, 0.45f, 6f);
             SampleCanyon(Valley1Canyon, 84f, out float alcoveX, out _, out _);
             AddHawk(c, m, "Hawk_2_AlcoveGuard", new Vector3(alcoveX - 6.2f, -6.6f, 84f), HawkPattern.Loop, new Vector3(1.5f, 0f, 3.2f), 3.0f, 0.6f);
             AddShard(c, c.MapId, new Vector3(alcoveX - 8.5f, -7.0f, 84f), m.Shard, 0.4f, 0.8f);
-            SampleCanyon(Valley1Canyon, 98f, out float updraftX, out _, out _);
-            GlideUpdraftColumn(c, m, "Updraft_2", updraftX, 98f, ceiling2, 5f, 8f);
+            // No updraft here (play-test): climb back from the alcove with W / hold Jump while gliding.
             SampleCanyon(Valley1Canyon, 108.25f, out float shelfX, out _, out float shelfRight);
+            AddHawkInCanyon(c, m, "Hawk_2_EightMid", 99f, 0.3f, -2.8f, HawkPattern.FigureEight, new Vector3(3.2f, 0.6f, 2.0f), 4.0f, 0.9f);
             RockSlab(c, m, "Overhang_2", shelfX - 1.4f, shelfX + shelfRight + 1f, 108.25f, 2.5f, -1.0f, 8f);
+            AddHawkInCanyon(c, m, "Hawk_2_SweepLate", 115f, 0f, -3.2f, HawkPattern.Sweep, new Vector3(3.8f, 0.3f, 0.8f), 2.6f, 0.2f);
             GlideLedge(c, m, Valley1Canyon, "Checkpoint_2", -1f, -1f, 125f, ceiling2, false); // apron z 118 - 122, pad 122 - 128
 
             // Leg 3 (launch top -1, ceiling 1.5): a stacked pair sweeping across in opposite phase (pick a height),
@@ -288,6 +301,7 @@ namespace WeatherForSale.EditorTools
             GlideLaunch(c, m, "Launch_3", -1f, -1f, 128f, glider);
             AddHawk(c, m, "Hawk_3_SweepLow", new Vector3(0.6f, -3.4f, 137f), HawkPattern.Sweep, new Vector3(4.2f, 0.3f, 0.8f), 3.0f, 0f);
             AddHawk(c, m, "Hawk_3_SweepHigh", new Vector3(0.6f, 0.4f, 137f), HawkPattern.Sweep, new Vector3(4.2f, 0.3f, 0.8f), 3.0f, 1.5f);
+            AddHawkInCanyon(c, m, "Hawk_3_LoopMid", 132f, -0.5f, -2.2f, HawkPattern.Loop, new Vector3(3.6f, 1.2f, 2.0f), 3.8f, 1.3f);
             RockSpire(c, m, "Spire_3a", 2.0f, 144f, 1.0f, 6f);
             RockSpire(c, m, "Spire_3b", 4.6f, 147.5f, 1.0f, -2.5f);
             StoneArch(c, m, Valley1Canyon, "Arch_3", 152.5f, 3f, 0.0f, 9f);
@@ -295,6 +309,59 @@ namespace WeatherForSale.EditorTools
             GlideLedge(c, m, Valley1Canyon, "FinishPad", 0f, 0f, 174f, ceiling3, true); // apron z 167 - 171, finish 171 - 177
 
             ValleyScenery(c, m, -20f, 180f, 4001, false);
+            int hidden = CullSceneryBehindCanyonWalls(c);
+            if (hidden > 0) Debug.Log("[MapLevelBuilder] valley 1: removed " + hidden + " scenery piece(s) beside the canyon (out of sight while gliding).");
+        }
+
+        /// <summary>
+        /// The glide runs inside the canyon and its walls block the view out, so no dressing beside the canyon is ever
+        /// seen. Removes every scenery piece along the canyon (its centre within the walls' Z range, or up to
+        /// <see cref="BehindStartReach"/> before it) that lies outside
+        /// the walls: its face nearest the centre line is past the inner face of a wall on its own side at that Z.
+        /// Saves draw calls and scene size. Returns the number removed.
+        /// </summary>
+        private static int CullSceneryBehindCanyonWalls(Context c)
+        {
+            Transform group = c.Course.Find("CanyonWalls");
+            if (group == null || c.Scenery == null) return 0;
+            var walls = new List<Bounds>();
+            foreach (Transform w in group)
+            {
+                if (!(w.name.StartsWith("Wall_L_") || w.name.StartsWith("Wall_R_")) || w.name.EndsWith("_Band")) continue;
+                if (w.TryGetComponent(out Renderer wr)) walls.Add(wr.bounds);
+            }
+            if (walls.Count == 0) return 0;
+            float zMin = float.MaxValue, zMax = float.MinValue;
+            foreach (Bounds w in walls) { zMin = Mathf.Min(zMin, w.min.z); zMax = Mathf.Max(zMax, w.max.z); }
+
+            var doomed = new List<GameObject>();
+            foreach (Transform piece in c.Scenery)
+            {
+                Renderer[] rs = piece.GetComponentsInChildren<Renderer>(true);
+                if (rs.Length == 0) continue;
+                Bounds b = rs[0].bounds;
+                for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+                // Also the big mesas behind the start pad, which the canyon's mouth hides the same way.
+                if (b.center.z < zMin - BehindStartReach || b.center.z > zMax) continue;
+                if (OutsideWalls(b, walls, Mathf.Clamp(b.center.z, zMin, zMax))) doomed.Add(piece.gameObject);
+            }
+            foreach (GameObject go in doomed) Object.DestroyImmediate(go);
+            return doomed.Count;
+        }
+
+        private const float BehindStartReach = 30f; // metres before the canyon's first wall still culled
+
+        private static bool OutsideWalls(Bounds o, List<Bounds> walls, float atZ)
+        {
+            bool left = o.center.x < 0f;
+            float near = left ? -o.max.x : o.min.x; // the piece's face nearest the canyon's centre line
+            float innerAtZ = float.MaxValue;
+            foreach (Bounds w in walls)
+            {
+                if ((w.center.x < 0f) != left || atZ < w.min.z - 1f || atZ > w.max.z + 1f) continue;
+                innerAtZ = Mathf.Min(innerAtZ, left ? -w.max.x : w.min.x);
+            }
+            return innerAtZ < float.MaxValue && near >= innerAtZ + 0.3f;
         }
 
         // ------------------------------------------------------------------ level 2: Fans and wind vents
@@ -309,12 +376,12 @@ namespace WeatherForSale.EditorTools
             // sweeper fan on its deck (jump its bar while the raft slides), then a 2 m ledge with two more fans
             // only 3.2 m apart.
             Slab(c, "Ledge_A", 0f, 0.0f, 9.6f, 1.8f, 11.0f, c.In.PlatformMaterial, m.Pillar, ValleyBottomY);          // z 4.1 - 15.1, gap 1.1
-            GiantFan(c, m, "Fan_1", 0f, 0.0f, 7.2f, 4.2f, 3, 70f, 0f, 1f);
-            GiantFan(c, m, "Fan_2", 0f, 0.0f, 12.0f, 4.2f, 3, -84f, 60f, -1f);
+            GiantFan(c, m, "Fan_1", 0f, 0.0f, 7.2f, 4.2f, 2, 42f, 0f, 1f);
+            GiantFan(c, m, "Fan_2", 0f, 0.0f, 12.0f, 4.2f, 2, -50f, 60f, -1f);
             ValleySweeperRaft(c, m, "Raft_A", 0f, 0.3f, 18.8f, 3.2f, new Vector3(1.4f, 0f, 0f), 4.4f, 0f, 1.5f, 2, 100f); // z 17.6 - 20.0, gap 2.5
             Slab(c, "Ledge_C", 0f, 0.8f, 26.0f, 2.0f, 7.0f, c.In.PlatformMaterial, m.Pillar, ValleyBottomY);          // z 22.5 - 29.5, gap 2.5, +0.5
-            GiantFan(c, m, "Fan_3", 0f, 0.8f, 24.4f, 4.0f, 3, 96f, 30f, 1f);
-            GiantFan(c, m, "Fan_4", 0f, 0.8f, 27.6f, 3.6f, 3, -80f, 0f, -1f);
+            GiantFan(c, m, "Fan_3", 0f, 0.8f, 24.4f, 4.0f, 2, 58f, 30f, 1f);
+            GiantFan(c, m, "Fan_4", 0f, 0.8f, 27.6f, 3.6f, 2, -48f, 0f, -1f);
             AddCheckpoint(c, "Checkpoint_1", 0f, 1.0f, 33.6f, ValleyCheckpointSize, m.Pillar, ValleyBottomY);         // gap 2.1
 
             // B "Vent chain": vent 1 lifts you (hover at its top), drift across a fan whose lowest blades sweep the
@@ -322,12 +389,12 @@ namespace WeatherForSale.EditorTools
             // sweep of fan 6 (time the exit) and past fan 7.
             Slab(c, "Ledge_V1", 0f, 1.0f, 39.4f, 2.4f, 4.0f, c.In.PlatformMaterial, m.Pillar, ValleyBottomY);         // z 37.4 - 41.4, gap 1.8
             Vent(c, m, "Vent_1", 0f, 1.0f, 40.2f, 3.8f);                                                             // column z 39.1 - 41.3, top 4.8
-            GiantFan(c, m, "Fan_5", 0f, 4.2f, 43.0f, 3.0f, 3, 64f, 0f, 1f);                                           // air fan: hub y 7.4, sweeps y 4.4 - 10.4
+            GiantFan(c, m, "Fan_5", 0f, 4.2f, 43.0f, 3.0f, 2, 38f, 0f, 1f);                                           // air fan: hub y 7.4, sweeps y 4.4 - 10.4
             Slab(c, "VentPad_2", 0f, 4.2f, 45.6f, 2.0f, 2.0f, c.In.PlatformMaterial, m.Pillar, ValleyBottomY);        // z 44.6 - 46.6
             Vent(c, m, "Vent_2", 0f, 4.2f, 45.6f, 3.4f);                                                             // column z 44.5 - 46.7, top 7.6
             Slab(c, "Ledge_D", 0f, 7.2f, 52.4f, 1.8f, 7.0f, c.In.PlatformMaterial, m.Pillar, ValleyBottomY);          // z 48.9 - 55.9, 2.2 from the column
-            GiantFan(c, m, "Fan_6", 0f, 7.2f, 49.8f, 4.0f, 3, 78f, 0f, -1f);
-            GiantFan(c, m, "Fan_7", 0f, 7.2f, 53.8f, 4.0f, 3, -90f, 50f, 1f);
+            GiantFan(c, m, "Fan_6", 0f, 7.2f, 49.8f, 4.0f, 2, 47f, 0f, -1f);
+            GiantFan(c, m, "Fan_7", 0f, 7.2f, 53.8f, 4.0f, 2, -54f, 50f, 1f);
             AddCheckpoint(c, "Checkpoint_2", 0f, 7.4f, 59.8f, ValleyCheckpointSize, m.Pillar, ValleyBottomY);         // gap 1.9
 
             // C "Broken bridges": two long (9.6 m) suspension bridges with an irregular swing (amplitude and tempo
@@ -349,10 +416,10 @@ namespace WeatherForSale.EditorTools
             float landNear = bridge2Z + reach2 + deck2 * 0.5f + Valley2BridgeClearance;                        // 101.2
             float landZ = landNear + 1.5f;                                                                     // 102.7 (3 x 3 landing)
 
-            SuspensionBridge(c, m, "Bridge_1", 0f, bridge1Z, bridgeTop, Valley2BridgeRope, Valley2Bridge1Swing, bridge1Planks, Valley2BridgeDeckWidth);
+            SwingPairBridge(c, m, "Bridge_1", 0f, cp2FarEdge, midNear, bridgeTop, Valley2BridgeRope, Valley2Bridge1Swing.Period, 0f, Valley2BridgeDeckWidth);
             Slab(c, "Bridge_MidRock", 0f, bridgeTop, midNear + Valley2MidRockSize * 0.5f, 2.6f, Valley2MidRockSize,
                 c.In.PlatformMaterial, m.Pillar, ValleyBottomY);                                                // z 80.2 - 82.8
-            SuspensionBridge(c, m, "Bridge_2", 0f, bridge2Z, bridgeTop, Valley2BridgeRope, Valley2Bridge2Swing, bridge2Planks, Valley2BridgeDeckWidth);
+            SwingPairBridge(c, m, "Bridge_2", 0f, midNear + Valley2MidRockSize, landNear, bridgeTop, Valley2BridgeRope, Valley2Bridge2Swing.Period, 1.3f, Valley2BridgeDeckWidth);
             float windStart = cp2FarEdge + 1f, windEnd = landNear - 1.2f;                                      // z 62.8 - 100.0
             WindZone(c, m, "Wind_Bridges", new Vector3(0f, 9.0f, (windStart + windEnd) * 0.5f), new Vector3(12f, 8f, windEnd - windStart),
                 new Vector3(Valley2BridgeGustSpeed, 0f, 0f), 1.0f, 2.2f, 0.4f, 3011);
@@ -365,10 +432,10 @@ namespace WeatherForSale.EditorTools
 
             // Secret branch off checkpoint 2 toward -X: a crumbling rock, a rock sliding along Z (across the jump)
             // and a bobbing rock, all small, 3.4 m gaps. Hidden Shard at the end.
-            ValleyCrumbleRock(c, m, "Secret_1", -6.15f, 7.6f, 59.8f, 2.0f, ValleySecretCrumbleStandSeconds);           // gap 3.4
-            ValleyMovingRock(c, m, "Secret_2", -11.05f, 7.8f, 59.8f, 2.0f, new Vector3(0f, 0f, 1.4f), 3.2f, 0f, 0f);    // gap 3.4
-            FloatingRock(c, m, "Secret_3", -15.95f, 8.0f, 59.8f, 2.0f, 0.25f, 2.6f, 0f, 0f);                           // gap 3.4
-            AddShard(c, c.MapId, new Vector3(-15.95f, 9.2f, 59.8f), m.Shard, 0.4f, 0.8f);
+            // (play-test: the Shard was too hard to find) two still rocks with short hops, in plain view of checkpoint 2.
+            ValleyMovingRock(c, m, "Secret_1", -5.0f, 7.6f, 59.8f, 2.4f, Vector3.zero, 1f, 0f, 0f);   // gap 1.8
+            ValleyMovingRock(c, m, "Secret_2", -8.8f, 7.8f, 59.8f, 2.4f, Vector3.zero, 1f, 0f, 0f);   // gap 1.4
+            AddShard(c, c.MapId, new Vector3(-8.8f, 9.0f, 59.8f), m.Shard, 0.4f, 0.8f);
 
             ValleyScenery(c, m, -20f, 130f, 4002);
         }
@@ -448,6 +515,15 @@ namespace WeatherForSale.EditorTools
 
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
+            // Meshy floating island (grassy top, rock point below) for the plain rocks; crumbling rocks keep their
+            // redder tint so they still read as the ones that fall.
+            MeshyPropBaker.PropMesh islandModel = material == m.PadRock ? MeshyPropBaker.BakeProp("Valley/Island", "FloatingIsland", MeshyPropBaker.ZUp) : null;
+            if (islandModel != null)
+            {
+                float height = Mathf.Max(FloatingRockThickness * 1.6f, size * 0.9f);
+                MeshyPropBaker.PlaceProp(islandModel, "Island", visual.transform, Vector3.down * height, new Vector3(size, height, size));
+                return root;
+            }
             GameObject island = GrassIsland(c, name + "_Island", x, topY, z, size, size, topY - FloatingRockThickness, material, visual.transform);
             if (island == null)
             {
@@ -465,6 +541,12 @@ namespace WeatherForSale.EditorTools
         /// low white blades (kill triggers, 0.2 - 0.5 m above the deck) out to <paramref name="sweepRadius"/>.
         /// Jump the bar as it comes round. Stand-in model: cubes and a cylinder post (no fan model; see report).
         /// </summary>
+        /// <summary>The Meshy single fan blade (length along model X, flat along Y), or null to use the stand-in paddles.</summary>
+        private static MeshyPropBaker.PropMesh FanBladeModel()
+        {
+            return MeshyPropBaker.BakeProp("Valley/Fan", "FanPaddle", MeshyPropBaker.ZUp);
+        }
+
         private static GameObject ValleySweeperRaft(Context c, ValleyMats m, string name, float x, float topY, float z, float size,
             Vector3 travel, float period, float phase, float sweepRadius, int blades, float degreesPerSecond)
         {
@@ -479,13 +561,19 @@ namespace WeatherForSale.EditorTools
             float span = sweepRadius - ValleySweeperHubRadius;
             float bladeY = ValleySweeperBladeBottom + ValleySweeperBladeThickness * 0.5f;
             var mid = new Vector3(ValleySweeperHubRadius + span * 0.5f, bladeY, 0f);
+            MeshyPropBaker.PropMesh bladeModel = FanBladeModel();
             for (int i = 0; i < blades; i++)
             {
                 var blade = new GameObject("Blade_" + (i + 1));
                 blade.transform.SetParent(rotor.transform, false);
                 blade.transform.localRotation = Quaternion.AngleAxis(360f / blades * i, Vector3.up);
-                Prim(PrimitiveType.Cube, "Paddle", blade.transform, mid,
-                    new Vector3(span, ValleySweeperBladeThickness, ValleySweeperBladeWidth), m.FanBlade);
+                // Meshy blade: its length (model X) along the arm, flat (model Y) up, width (model Z) across.
+                if (bladeModel != null)
+                    MeshyPropBaker.PlaceProp(bladeModel, "Paddle", blade.transform, mid + Vector3.down * (ValleySweeperBladeThickness * 0.5f),
+                        new Vector3(span, ValleySweeperBladeThickness, ValleySweeperBladeWidth));
+                else
+                    Prim(PrimitiveType.Cube, "Paddle", blade.transform, mid,
+                        new Vector3(span, ValleySweeperBladeThickness, ValleySweeperBladeWidth), m.FanBlade);
 
                 var hit = blade.AddComponent<BoxCollider>();
                 hit.isTrigger = true;
@@ -552,7 +640,14 @@ namespace WeatherForSale.EditorTools
                 blade.transform.SetParent(rotor.transform, false);
                 blade.transform.localRotation = Quaternion.AngleAxis(360f / blades * i, Vector3.forward);
                 Vector3 mid = new Vector3(0f, -(hubRadius + bladeSpan * 0.5f), 0f);
-                Prim(PrimitiveType.Sphere, "Paddle", blade.transform, mid, new Vector3(0.9f, bladeSpan, 0.18f), m.FanBlade);
+                // Meshy blade turned so its length (model X) runs down the arm, its width (model Z) across and
+                // its flat side (model Y) faces the camera axis Z; else an ellipsoid paddle.
+                MeshyPropBaker.PropMesh bladeModel = FanBladeModel();
+                if (bladeModel != null)
+                    MeshyPropBaker.PlaceProp(bladeModel, "Paddle", blade.transform, mid + Vector3.back * 0.09f,
+                        new Vector3(bladeSpan, 0.18f, 0.9f), Quaternion.LookRotation(Vector3.right, Vector3.forward).eulerAngles);
+                else
+                    Prim(PrimitiveType.Sphere, "Paddle", blade.transform, mid, new Vector3(0.9f, bladeSpan, 0.18f), m.FanBlade);
 
                 var hit = blade.AddComponent<BoxCollider>();
                 hit.isTrigger = true;
@@ -616,86 +711,64 @@ namespace WeatherForSale.EditorTools
         }
 
         /// <summary>
-        /// A swinging suspension bridge: a plank deck hung by two ropes from a beam between two sandstone towers,
-        /// swinging along Z with an irregular rhythm (<see cref="IrregularSwing"/>) while staying level; the
-        /// player rides it (RideableSurface on the deck: the controller follows the deck's movement).
-        /// <paramref name="planks"/> lays the deck out from its -Z end, one character per
-        /// <see cref="ValleyPlankLength"/> plank: 'X' = plank, anything else = a missing plank (a hole with no
-        /// collider). <paramref name="extremeTopY"/> is the deck height at the widest swing.
-        /// Stand-in model: planks and cylinders (no bridge model; see report).
+        /// A bridge zone from <paramref name="zStart"/> to <paramref name="zEnd"/> (the fixed edges either side) made of
+        /// two deck sections on their own ropes, swinging along Z in opposite phase with the same steady amplitude
+        /// (play-test: two per zone, swinging and meeting, never overlapping). At one end of the swing the first section
+        /// is a short hop from the start edge and the second from the end edge; at the other end the two sections meet,
+        /// <see cref="Valley2PairMeetGap"/> apart, so you walk from one onto the other. They never overlap: same period
+        /// and amplitude, exactly half a swing apart. <paramref name="extremeTopY"/> is the deck height at the widest swing.
         /// </summary>
-        private static void SuspensionBridge(Context c, ValleyMats m, string name, float x, float zCenter, float extremeTopY,
-            float length, BridgeSwing swing, string planks, float deckWidth)
+        private static void SwingPairBridge(Context c, ValleyMats m, string name, float x, float zStart, float zEnd, float extremeTopY,
+            float rope, float period, float phase, float deckWidth)
         {
-            float deckLength = planks.Length * ValleyPlankLength;
-            float restTop = extremeTopY - length * (1f - Mathf.Cos(swing.MaxAmplitude * Mathf.Deg2Rad));
-            var pivotPosition = new Vector3(x, restTop + length, zCenter);
+            float reach = rope * Mathf.Sin(Valley2PairSwingDegrees * Mathf.Deg2Rad);
+            float clearance = Valley2BridgeClearance;
+            float section = (zEnd - zStart - 2f * clearance - 4f * reach - Valley2PairMeetGap) * 0.5f;
+            float restTop = extremeTopY - rope * (1f - Mathf.Cos(Valley2PairSwingDegrees * Mathf.Deg2Rad));
             float half = deckWidth * 0.5f;
-
-            var pivot = new GameObject(name + "_Pivot");
-            pivot.transform.SetParent(c.Course, false);
-            pivot.transform.position = pivotPosition;
-            for (int s = -1; s <= 1; s += 2)
+            MeshyPropBaker.PropMesh plankModel = MeshyPropBaker.BakeProp("Valley/Plank", "BridgePlank", MeshyPropBaker.ZUp);
+            float[] pivots = { zStart + clearance + reach + section * 0.5f, zEnd - clearance - reach - section * 0.5f };
+            for (int k = 0; k < 2; k++)
             {
-                Prim(PrimitiveType.Cylinder, "Rope", pivot.transform, new Vector3(s * half, -length * 0.5f, 0f), new Vector3(0.1f, length * 0.5f, 0.1f), m.Rope);
-            }
+                var pivot = new GameObject(name + "_Pivot_" + (k + 1));
+                pivot.transform.SetParent(c.Course, false);
+                pivot.transform.position = new Vector3(x, restTop + rope, pivots[k]);
+                for (int s = -1; s <= 1; s += 2)
+                    Prim(PrimitiveType.Cylinder, "Rope", pivot.transform, new Vector3(s * half, -rope * 0.5f, 0f), new Vector3(0.1f, rope * 0.5f, 0.1f), m.Rope);
 
-            var deck = new GameObject("Deck");
-            deck.transform.SetParent(pivot.transform, false);
-            deck.transform.localPosition = new Vector3(0f, -length, 0f);
-
-            // One box collider per run of planks; holes get none.
-            int i = 0;
-            while (i < planks.Length)
-            {
-                if (planks[i] != 'X') { i++; continue; }
-                int start = i;
-                while (i < planks.Length && planks[i] == 'X') i++;
-                float runLength = (i - start) * ValleyPlankLength;
-                float runCenter = -deckLength * 0.5f + start * ValleyPlankLength + runLength * 0.5f;
+                var deck = new GameObject("Deck");
+                deck.transform.SetParent(pivot.transform, false);
+                deck.transform.localPosition = new Vector3(0f, -rope, 0f);
                 var box = deck.AddComponent<BoxCollider>();
-                box.size = new Vector3(deckWidth, 0.3f, runLength);
-                box.center = new Vector3(0f, -0.15f, runCenter);
-            }
-            for (int p = 0; p < planks.Length; p++)
-            {
-                if (planks[p] != 'X') continue;
-                float pz = -deckLength * 0.5f + ValleyPlankLength * (p + 0.5f);
-                Prim(PrimitiveType.Cube, "Plank", deck.transform, new Vector3(0f, -0.06f, pz), new Vector3(deckWidth - 0.05f, 0.12f, ValleyPlankLength - 0.06f), m.Plank);
-            }
-            for (int s = -1; s <= 1; s += 2)
-            {
-                // Hand ropes along both sides (visual only: they do not stop a gust) and posts at the two ends.
-                Prim(PrimitiveType.Cylinder, "Rail", deck.transform, new Vector3(s * half, 0.7f, 0f), new Vector3(0.07f, deckLength * 0.5f, 0.07f), m.Rope, new Vector3(90f, 0f, 0f));
-                for (int e = -1; e <= 1; e += 2)
-                {
-                    Prim(PrimitiveType.Cylinder, "Post", deck.transform, new Vector3(s * half, 0.35f, e * (deckLength * 0.5f - 0.1f)), new Vector3(0.1f, 0.35f, 0.1f), m.Plank);
-                }
-            }
-            deck.AddComponent<RideableSurface>();
+                box.size = new Vector3(deckWidth, 0.3f, section);
+                box.center = new Vector3(0f, -0.15f, 0f);
+                if (plankModel != null)
+                    MeshyPropBaker.PlaceProp(plankModel, "Planks", deck.transform, new Vector3(0f, -ValleyPlankModelBoardTop, 0f),
+                        new Vector3(deckWidth, ValleyPlankModelHeight, section));
+                else
+                    Prim(PrimitiveType.Cube, "Planks", deck.transform, new Vector3(0f, -0.06f, 0f), new Vector3(deckWidth - 0.05f, 0.12f, section - 0.06f), m.Plank);
+                for (int s = -1; s <= 1; s += 2)
+                    Prim(PrimitiveType.Cylinder, "Rail", deck.transform, new Vector3(s * half, 0.7f, 0f), new Vector3(0.07f, section * 0.5f, 0.07f), m.Rope, new Vector3(90f, 0f, 0f));
+                deck.AddComponent<RideableSurface>();
 
-            var irregular = pivot.AddComponent<IrregularSwing>();
-            SetFields(irregular,
-                ("swingAxis", Vector3.right),
-                ("baseAmplitudeDegrees", swing.BaseAmplitude),
-                ("amplitudeVariationDegrees", swing.AmplitudeVariation),
-                ("amplitudePeriodSeconds", swing.AmplitudePeriod),
-                ("periodSeconds", swing.Period),
-                ("wobbleRadians", swing.Wobble),
-                ("wobblePeriodSeconds", swing.WobblePeriod),
-                ("phaseSeconds", swing.Phase),
-                ("keepUpright", deck.transform));
+                // Steady swing (no amplitude drift, no wobble) so the pair stays exactly opposite.
+                var swing = pivot.AddComponent<PendulumSwing>();
+                SetFields(swing,
+                    ("swingAxis", Vector3.right),
+                    ("amplitudeDegrees", Valley2PairSwingDegrees),
+                    ("periodSeconds", period),
+                    ("phaseSeconds", phase + k * period * 0.5f),
+                    ("keepUpright", deck.transform));
 
-            // Towers and the beam the ropes hang from (visual only).
-            float towerX = half + 1.8f;
-            float beamY = pivotPosition.y + 0.3f;
-            float towerHeight = beamY + 0.4f - ValleyBottomY;
-            for (int s = -1; s <= 1; s += 2)
-            {
-                Prim(PrimitiveType.Cylinder, name + "_Tower", c.Scenery, new Vector3(x + s * towerX, ValleyBottomY + towerHeight * 0.5f, zCenter),
-                    new Vector3(1.6f, towerHeight * 0.5f, 1.6f), m.Tower);
+                // Towers either side and the beam the ropes hang from (visual only).
+                float towerX = half + 1.8f;
+                float beamY = restTop + rope + 0.3f;
+                float towerHeight = beamY + 0.4f - ValleyBottomY;
+                for (int s = -1; s <= 1; s += 2)
+                    Prim(PrimitiveType.Cylinder, name + "_Tower_" + (k + 1), c.Scenery, new Vector3(x + s * towerX, ValleyBottomY + towerHeight * 0.5f, pivots[k]),
+                        new Vector3(1.6f, towerHeight * 0.5f, 1.6f), m.Tower);
+                Prim(PrimitiveType.Cylinder, name + "_Beam_" + (k + 1), c.Scenery, new Vector3(x, beamY, pivots[k]), new Vector3(0.5f, towerX, 0.5f), m.Tower, new Vector3(0f, 0f, 90f));
             }
-            Prim(PrimitiveType.Cylinder, name + "_Beam", c.Scenery, new Vector3(x, beamY, zCenter), new Vector3(0.5f, towerX, 0.5f), m.Tower, new Vector3(0f, 0f, 90f));
         }
 
         // ------------------------------------------------------------------ level 1 glide builders
@@ -892,45 +965,18 @@ namespace WeatherForSale.EditorTools
         }
 
         /// <summary>
-        /// An updraft for gliders rising from the river bed to <paramref name="topY"/> (keep it at the leg's
-        /// ceiling): a <see cref="GlideUpdraft"/> trigger, a vent ring on the floor, a pale air column and rising streaks.
-        /// </summary>
-        private static void GlideUpdraftColumn(Context c, ValleyMats m, string name, float x, float z, float topY, float sizeX, float sizeZ)
-        {
-            float height = topY - GlideFloorY;
-            var root = new GameObject(name);
-            root.transform.SetParent(c.Course, false);
-            root.transform.position = new Vector3(x, GlideFloorY, z);
-            var box = root.AddComponent<BoxCollider>();
-            box.isTrigger = true;
-            box.size = new Vector3(sizeX, height, sizeZ);
-            box.center = new Vector3(0f, height * 0.5f, 0f);
-            root.AddComponent<GlideUpdraft>();
-
-            Prim(PrimitiveType.Cylinder, "Rim", root.transform, new Vector3(0f, 0.05f, 0f), new Vector3(sizeX * 0.95f, 0.05f, sizeZ * 0.95f), m.VentRim);
-            Prim(PrimitiveType.Cylinder, "Grate", root.transform, new Vector3(0f, 0.09f, 0f), new Vector3(sizeX * 0.8f, 0.04f, sizeZ * 0.8f), m.VentDark);
-            Prim(PrimitiveType.Cylinder, "AirColumn", root.transform, new Vector3(0f, height * 0.5f, 0f), new Vector3(sizeX * 0.9f, height * 0.5f, sizeZ * 0.9f), m.Air);
-
-            var streakRoot = new GameObject("Streaks");
-            streakRoot.transform.SetParent(root.transform, false);
-            var rng = new System.Random(8000 + (int)(z * 10f));
-            for (int i = 0; i < 12; i++)
-            {
-                float angle = (float)rng.NextDouble() * Mathf.PI * 2f;
-                float radius = 0.2f + (float)rng.NextDouble() * 0.7f;
-                Prim(PrimitiveType.Cylinder, "Streak", streakRoot.transform,
-                    new Vector3(Mathf.Cos(angle) * radius * sizeX * 0.45f, 0f, Mathf.Sin(angle) * radius * sizeZ * 0.45f), new Vector3(0.06f, 0.6f, 0.06f), m.Streak);
-            }
-            var drift = streakRoot.AddComponent<StreakDrift>();
-            SetFields(drift, ("localDirection", Vector3.up), ("speed", 7f), ("loopLength", height));
-            streakRoot.transform.localPosition = new Vector3(0f, height * 0.5f, 0f);
-        }
-
-        /// <summary>
         /// A hawk (original stand-in from primitives: dark brown body and wings, white head, chest and wing tips,
         /// yellow beak), wingspan 2.6 m, flying <paramref name="pattern"/> around <paramref name="centre"/>.
         /// Its kill box (<see cref="HawkHitbox"/>) is smaller than the model, so a near miss is a miss.
         /// </summary>
+        /// <summary>A hawk centred on the canyon's middle at <paramref name="z"/> (plus <paramref name="offsetX"/>), at height <paramref name="y"/>.</summary>
+        private static Hawk AddHawkInCanyon(Context c, ValleyMats m, string name, float z, float offsetX, float y, HawkPattern pattern, Vector3 radii,
+            float period, float phase)
+        {
+            SampleCanyon(Valley1Canyon, z, out float centreX, out _, out _);
+            return AddHawk(c, m, name, new Vector3(centreX + offsetX, y, z), pattern, radii, period, phase);
+        }
+
         private static Hawk AddHawk(Context c, ValleyMats m, string name, Vector3 centre, HawkPattern pattern, Vector3 radii, float period, float phase,
             float diveFraction = 0.45f, float returnLift = 6f)
         {

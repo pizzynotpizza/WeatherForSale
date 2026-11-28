@@ -17,20 +17,24 @@ MonoBehaviour:
     displayName: Rainforest
     sceneName: Obby_Rainforest
     bottleSprite: {fileID: 21300000, guid: 6533c4b12120ae146a918d0fe283c793, type: 3}
-    thumbnail: {fileID: 21300000, guid: e771b564f4e55134d9ec78e36d6cc9db, type: 3}
+    thumbnail: {fileID: 21300000, guid: e520b19486b5fc640b911b940f22b693, type: 3}
+    themeColour: {r: 0.45, g: 0.92, b: 0.62, a: 1}
   - id: valley
     displayName: Valley
     sceneName: Obby_Valley
     bottleSprite: {fileID: 21300000, guid: 2ad24d97af90ea947a095fc87ebc1fcb, type: 3}
-    thumbnail: {fileID: 21300000, guid: 7a926b14f1fad67408de33985abc3c8c, type: 3}
+    thumbnail: {fileID: 21300000, guid: 7ee2542974043f14090b7aade3318706, type: 3}
+    themeColour: {r: 0.62, g: 0.86, b: 1, a: 1}
   - id: desert
     displayName: Desert
     sceneName: Obby_Desert
     bottleSprite: {fileID: 21300000, guid: 3c85de121101286458e980b545058736, type: 3}
-    thumbnail: {fileID: 21300000, guid: 5116828de164f7e49a9d650553e0591c, type: 3}
+    thumbnail: {fileID: 21300000, guid: 31f9c17a592b576459622202e886d296, type: 3}
+    themeColour: {r: 1, g: 0.8, b: 0.32, a: 1}
   - id: glacier
     displayName: Glacier
     sceneName: Obby_Glacier
     bottleSprite: {fileID: 21300000, guid: 91687f7f85515a6488b6db370c531f4a, type: 3}
-    thumbnail: {fileID: 21300000, guid: e0417d2ce380b364ca2d2510d2d664b6, type: 3}
+    thumbnail: {fileID: 21300000, guid: ce310190cad3f5546a001c444bc51a0e, type: 3}
+    themeColour: {r: 0.78, g: 0.95, b: 1, a: 1}
   minLoadingSeconds: 1.5

@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using WeatherForSale.Obby;
+using WeatherForSale.Progress;
 using WeatherForSale.Shop;
 using WeatherForSale.Suction;
 
@@ -29,6 +30,10 @@ namespace WeatherForSale.Core
         [SerializeField] private ShopSession session;
         [SerializeField] private MapCatalog catalog;
         [SerializeField] private SuctionStrings strings;
+        [SerializeField, Tooltip("Saved progress (story 005): deaths, the Shard and the cleared map's stars are recorded here.")]
+        private ProgressService progress;
+        [SerializeField, Tooltip("Story or Freeplay (story 006/007): Freeplay runs return to Level Select; Story runs add to the day totals.")]
+        private WeatherForSale.Story.GameModeState modeState;
 
         [Header("Obby level")]
         [SerializeField] private ObbyLevelManager level;
@@ -46,6 +51,7 @@ namespace WeatherForSale.Core
         private bool levelResultRecorded;
         private bool suctionRunning;
         private bool loading;
+        private int recordedDeaths;
 
         /// <summary>The run's session (shared across scenes).</summary>
         public ShopSession Session => session;
@@ -72,13 +78,21 @@ namespace WeatherForSale.Core
 
         private void OnEnable()
         {
-            if (level != null) level.StateChanged += OnLevelStateChanged;
+            if (level != null)
+            {
+                level.StateChanged += OnLevelStateChanged;
+                level.DeathCountChanged += OnDeathCountChanged;
+            }
             if (nextButton != null) nextButton.onClick.AddListener(AdvanceAfterLevel);
         }
 
         private void OnDisable()
         {
-            if (level != null) level.StateChanged -= OnLevelStateChanged;
+            if (level != null)
+            {
+                level.StateChanged -= OnLevelStateChanged;
+                level.DeathCountChanged -= OnDeathCountChanged;
+            }
             if (nextButton != null) nextButton.onClick.RemoveListener(AdvanceAfterLevel);
         }
 
@@ -103,6 +117,25 @@ namespace WeatherForSale.Core
         private void OnShardCollected(ShardPickup shard)
         {
             if (session != null) session.MarkShardCollected();
+            if (progress != null && session != null) progress.RecordShard(session.ChosenMapId);
+        }
+
+        // Each death is saved as it happens (lifetime total for the "Die 10 times" achievement).
+        private void OnDeathCountChanged(int deathCount)
+        {
+            int added = deathCount - recordedDeaths;
+            recordedDeaths = deathCount;
+            if (added > 0 && progress != null) progress.RecordDeaths(added);
+        }
+
+        /// <summary>
+        /// Called by the suction minigame when the Complete screen shows: saves the cleared map and its
+        /// <paramref name="stars"/> (best kept) to the player's progress.
+        /// </summary>
+        public void RecordMapCleared(int stars)
+        {
+            if (progress != null && session != null) progress.RecordMapCleared(session.ChosenMapId, stars);
+            if (modeState != null && session != null) modeState.AddMapResult(stars, session.RunSeconds);
         }
 
         /// <summary>
@@ -132,6 +165,13 @@ namespace WeatherForSale.Core
         {
             if (session == null || config == null) return;
             session.SetRunLevel(0);
+            if (modeState != null && modeState.IsFreeplay)
+            {
+                // Freeplay (story 007): no customer to hand the bottle to; back to Level Select.
+                session.ResetSession();
+                LoadScene(modeState.levelSelectScene);
+                return;
+            }
             session.ReturnWithBottle();
             LoadScene(config.shopSceneName);
         }

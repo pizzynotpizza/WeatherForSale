@@ -59,6 +59,12 @@ namespace WeatherForSale.UI
         {
             if (mapNameText != null && map != null) mapNameText.text = map.displayName;
             if (loadingText != null && strings != null) loadingText.text = strings.loadingLabel;
+            // Text in the colour of the weather Sam is heading into.
+            if (map != null)
+            {
+                if (mapNameText != null) mapNameText.color = map.themeColour;
+                if (loadingText != null) loadingText.color = map.themeColour;
+            }
             if (root != null) root.SetActive(true);
             if (samStage != null) samStage.SetActive(true);
             StartRunning();

@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddb7f0644ca9c6f44b9ca1fe3db5ccb2, type: 3}
+  m_Name: Cutscene_Opening
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Story.CutsceneData
+  id: 0
+  slides:
+  - background: {fileID: 21300000, guid: 6a1ffab96b4918145bc877bdf7823bf8, type: 3}
+    backgroundColor: {r: 1, g: 0.85, b: 0.65, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: Sunrise spills over the rooftops. Sam bolts awake. Today feels different,
+      as if the sky itself is holding its breath.
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: c3416fffd6d3f5242a8de97b49b4d40a, type: 3}
+    backgroundColor: {r: 1, g: 0.85, b: 0.65, a: 1}
+    portrait: {fileID: 21300000, guid: e3a2413316bbb0c4c90e5402161d845a, type: 3}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: Sam
+    text: Red jacket? Check. Lucky goggles? Check. Whatever today throws at me, I'm
+      ready for it!
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 368385198fdc0ce4aab904224a171f9f, type: 3}
+    backgroundColor: {r: 0.62, g: 0.82, b: 0.98, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: Down the cobbled street to Uncle John's Weather for Sale, the only shop
+      in town that sells sunshine by the bottle.
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 172af04e675caa74794987cee7032746, type: 3}
+    backgroundColor: {r: 0.86, g: 0.66, b: 0.42, a: 1}
+    portrait: {fileID: 21300000, guid: e3a2413316bbb0c4c90e5402161d845a, type: 3}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: Sam
+    text: Uncle John? ...Hello? The lamps are lit, the bell rang... but nobody's
+      here.
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 2a8e12822cc311c43a5eb307adc17d01, type: 3}
+    backgroundColor: {r: 0.86, g: 0.66, b: 0.42, a: 1}
+    portrait: {fileID: 21300000, guid: 97699195a1fc0f74a9c6292a36b0dfbc, type: 3}
+    portraitRight: 1
+    portraitOverPicture: 1
+    speaker: A note on the counter
+    text: 'Sam, I''m away for the day. The shop is yours. Every customer will tell
+      you the weather they need: find it, bottle it, bring it home. I''m counting
+      on you! - Uncle John'
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 49b5ad9774884964b8399e75752e5e4b, type: 3}
+    backgroundColor: {r: 0.86, g: 0.66, b: 0.42, a: 1}
+    portrait: {fileID: 21300000, guid: e3a2413316bbb0c4c90e5402161d845a, type: 3}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: Sam
+    text: The whole shop... on my own? Okay. Deep breath. Today, I'm the keeper of
+      the weather!
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  recordsEnding: 0
+  ending: 0
+  next: 0

@@ -60,3 +60,13 @@
 *.otf filter=lfs diff=lfs merge=lfs -text
 *.pdf filter=lfs diff=lfs merge=lfs -text
 *.dll filter=lfs diff=lfs merge=lfs -text
+
+# === Reference images saved without an extension (ChatGPT downloads in design/ref) ===
+design/ref/Opening[0-9] filter=lfs diff=lfs merge=lfs -text
+design/ref/NormalEnding[0-9] filter=lfs diff=lfs merge=lfs -text
+design/ref/TrueIntro[0-9] filter=lfs diff=lfs merge=lfs -text
+design/ref/TrueEnding[0-9] filter=lfs diff=lfs merge=lfs -text
+design/ref/LevelSelectBG filter=lfs diff=lfs merge=lfs -text
+design/ref/ModeStage filter=lfs diff=lfs merge=lfs -text
+design/ref/SecretSlot filter=lfs diff=lfs merge=lfs -text
+design/ref/Weather[[:space:]]for[[:space:]]Sale[[:space:]]Logo filter=lfs diff=lfs merge=lfs -text

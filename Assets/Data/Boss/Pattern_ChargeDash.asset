@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a58ee7c0ebc1cb4599504b2a65c3a8a, type: 3}
+  m_Name: Pattern_ChargeDash
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Boss.ChargeDashPattern
+  displayName: Charge!
+  telegraphSeconds: 1.2
+  knockback: 28
+  chargeSeconds: 5
+  lockedSeconds: 1.6
+  laneHalfWidth: 4
+  dashSpeed: 52
+  skyHeight: 7.35
+  lowHeight: 7.35
+  startOutside: 4
+  landSeconds: 0.8
+  landedPauseSeconds: 0.4
+  recoverSeconds: 1.2

@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dca43b6a11ec76d4ab04181572979c6e, type: 3}
+  m_Name: BossPlayerConfig
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Obby.ObbyLevelConfig
+  moveSpeed: 6
+  groundAcceleration: 45
+  airControl: 0.6
+  turnSpeed: 720
+  jumpSpeed: 9
+  gravity: 25
+  maxFallSpeed: 40
+  coyoteTime: 0.1
+  jumpBufferTime: 0.12
+  groundedStickSpeed: 2
+  levelTimeSeconds: 180
+  lowTimeWarningSeconds: 30
+  killHeight: -15
+  respawnHeightOffset: 0.25
+  cameraDistance: 10
+  cameraMinDistance: 0
+  cameraMaxDistance: 22
+  firstPersonEnterDistance: 0.75
+  firstPersonHideDistance: 0.5
+  firstPersonEyeHeight: 1.25
+  firstPersonMinPitch: -60
+  scrollZoomStep: 0.5
+  pinchZoomPerScreen: 8
+  zoomSharpness: 12
+  cameraPivotHeight: 1.1
+  cameraStartPitch: 11
+  cameraMinPitch: 0
+  cameraMaxPitch: 70
+  mouseLookSensitivity: 0.15
+  touchLookSensitivity: 0.2
+  gamepadLookSpeed: 140
+  cameraFollowSharpness: 14

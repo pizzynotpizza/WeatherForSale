@@ -43,6 +43,10 @@ namespace WeatherForSale.EditorTools
             public Vector3 FinishTop;
             /// <summary>Top of the water / kill slab, metres.</summary>
             public float HazardTopY = -6f;
+            /// <summary>How far level 2 was raised to keep the connector short (0 = not raised).</summary>
+            public float Level2Lift;
+            /// <summary>World Z where level 2's area begins (the connector's top): its raised water starts here.</summary>
+            public float Level2StartZ;
             /// <summary>Way Sam faces during the suction on a level 2 (0 = +Z, toward the floating weather past the dais).</summary>
             public float SuctionSpotYaw = 180f;
             /// <summary>
@@ -157,6 +161,8 @@ namespace WeatherForSale.EditorTools
         private const float ConnectorRampThickness = 0.6f; // hidden walk-on ramp collider
         private const float ConnectorEndGap = 0f;         // stairs end flush on level 2's start pad (no jump)
         private const float MergedStartPadSize = 6f;      // level 2's start pad (same as ObbyTestSceneBuilder's StartPad)
+        private const float ConnectorLiftAbove = 6f;      // drops taller than this raise level 2 instead of adding stairs
+        private const float ConnectorTargetDrop = 3f;     // what is left to walk down after the raise
         private const float MergedStartPadTopY = 0f;      // level 2's start pad top, level-2 local
         /// <summary>Drop scenery that falls on the other level's side of the join (bands overlap after the offset).</summary>
         private const bool CullSceneryAcrossJoin = true;
@@ -179,6 +185,33 @@ namespace WeatherForSale.EditorTools
                     if (b2.min.z >= b1.max.z || b2.max.z <= b1.min.z) continue; // no overlap
                     sheet2.transform.position += new Vector3(0f, 0f, b1.max.z - b2.min.z);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Level 2 was raised by <paramref name="lift"/>: each of its flat ground sheets gets a solid block under it
+        /// (same footprint and material, visual only) so the raised level reads as a plateau, not floating ground.
+        /// </summary>
+        private static void SkirtRaisedGround(Transform scenery2, float lift)
+        {
+            if (scenery2 == null) return;
+            var sheets = new List<MeshFilter>();
+            foreach (MeshFilter f in scenery2.GetComponentsInChildren<MeshFilter>(true)) if (IsGroundSheet(f)) sheets.Add(f);
+            foreach (MeshFilter sheet in sheets)
+            {
+                Renderer r = sheet.GetComponent<Renderer>();
+                Bounds b = r.bounds;
+                float height = lift + 2f; // reaches below the lower level's ground
+                GameObject skirt = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                skirt.name = sheet.name + "_RaisedSkirt";
+                Object.DestroyImmediate(skirt.GetComponent<Collider>());
+                skirt.transform.SetParent(scenery2, true);
+                skirt.transform.position = new Vector3(b.center.x, b.min.y - height * 0.5f, b.center.z);
+                skirt.transform.rotation = Quaternion.identity;
+                skirt.transform.localScale = Vector3.one;
+                Vector3 ls = scenery2.lossyScale;
+                skirt.transform.localScale = new Vector3(b.size.x / ls.x, height / ls.y, b.size.z / ls.z);
+                skirt.GetComponent<Renderer>().sharedMaterial = r.sharedMaterial;
             }
         }
 
@@ -222,13 +255,12 @@ namespace WeatherForSale.EditorTools
                 Transform root2 = NewLevelRoot("Level_L2", inputs.Root);
                 Inputs in2 = inputs; in2.Root = root2;
                 var ctx2 = new Context(mapId, 2, in2);
-                Checkpoint l2Start = ObbyTestSceneBuilder.CreateCheckpoint("StartPad",
+                // A plain pad, not a checkpoint: level 1's end (just before it) is the checkpoint for the join
+                // (play-test: two checkpoints side by side).
+                ObbyTestSceneBuilder.CreatePlatform("StartPad",
                     new ObbyTestSceneBuilder.PlatformSpec("StartPad", 0f, MergedStartPadTopY, 0f, MergedStartPadSize, MergedStartPadSize),
-                    inputs.CheckpointMaterial, root2);
+                    inputs.PlatformMaterial, root2);
                 BuildLevel(ctx2);
-                Renderer l2StartCloth = AddFlag(ctx2, "StartPad_L2_Flag",
-                    new Vector3(MergedStartPadSize * 0.5f - 0.5f, MergedStartPadTopY, 0f), inputs.CheckpointMaterial);
-                SetFields(l2Start, ("tintRenderer", l2StartCloth));
 
                 // --- level 1's finish no longer ends the run: it becomes a checkpoint (flag tints yellow -> green)
                 FinishTrigger l1Finish = ctx1.Result.Finish;
@@ -245,7 +277,12 @@ namespace WeatherForSale.EditorTools
                 {
                     PadMaterial = ctx1.PadMaterial, PadColorSet = ctx1.PadColorSet, PadCapMaterial = ctx1.PadCapMaterial,
                 };
-                float drop = l1Top.y - MergedStartPadTopY;
+                // A tall drop (the rainforest's ~10 m) would be a long, pointless staircase: level 2 is raised so only
+                // ConnectorTargetDrop is left to walk down. Its water gets its own raised slab (ObbyTestSceneBuilder).
+                float rawDrop = l1Top.y - MergedStartPadTopY;
+                float lift = rawDrop > ConnectorLiftAbove ? rawDrop - ConnectorTargetDrop : 0f;
+                float l2TopY = MergedStartPadTopY + lift;
+                float drop = l1Top.y - l2TopY;
                 // Steep stairs (short), walked on via one hidden ramp through every step's downhill top edge, so the
                 // steps never poke above it and the player walks up or down without jumping.
                 int steps = Mathf.Max(0, Mathf.CeilToInt(Mathf.Abs(drop) / ConnectorMaxStepRise - 0.0001f) - 1);
@@ -263,7 +300,7 @@ namespace WeatherForSale.EditorTools
                 {
                     float rampAngle = Mathf.Atan2(drop, runLength) * Mathf.Rad2Deg; // + = descending along +Z
                     float slopeLength = Mathf.Sqrt(drop * drop + runLength * runLength);
-                    var surfaceMid = new Vector3(l1Top.x, (l1Top.y + MergedStartPadTopY) * 0.5f, l1EdgeZ + runLength * 0.5f);
+                    var surfaceMid = new Vector3(l1Top.x, (l1Top.y + l2TopY) * 0.5f, l1EdgeZ + runLength * 0.5f);
                     Vector3 normal = Quaternion.Euler(rampAngle, 0f, 0f) * Vector3.up;
                     GameObject ramp = Prim(PrimitiveType.Cube, "Connector_WalkRamp", ctxC.Course,
                         surfaceMid - normal * (ConnectorRampThickness * 0.5f),
@@ -274,10 +311,11 @@ namespace WeatherForSale.EditorTools
                 float l2NearEdgeZ = l1EdgeZ + (steps > 0 ? runLength : 0f) + ConnectorEndGap;
 
                 // --- move level 2 into place (X/Z only; every piece is under root2, so it all moves together)
-                var offset = new Vector3(l1Top.x, 0f, l2NearEdgeZ + MergedStartPadSize * 0.5f);
+                var offset = new Vector3(l1Top.x, lift, l2NearEdgeZ + MergedStartPadSize * 0.5f);
                 root2.position = offset;
 
                 AbutGroundSheets(ctx1.Scenery, ctx2.Scenery);
+                if (lift > 0f) SkirtRaisedGround(ctx2.Scenery, lift);
 
                 int culled = 0;
                 if (CullSceneryAcrossJoin)
@@ -295,6 +333,9 @@ namespace WeatherForSale.EditorTools
                     {
                         if (s != null) Object.DestroyImmediate(s.gameObject);
                     }
+                    // Level 1's secret branch only led to that Shard: with it gone the branch is a dead end, so it goes too.
+                    int removed = RemoveSecretBranch(ctx1.Course) + RemoveSecretBranch(ctx1.Scenery);
+                    if (removed > 0) Debug.Log("[MapLevelBuilder] " + mapId + ": removed level 1's secret branch (" + removed + " piece(s)).");
                     keptShards.AddRange(ctx2.Result.Shards);
                 }
                 else
@@ -314,7 +355,6 @@ namespace WeatherForSale.EditorTools
                 var merged = new Result();
                 merged.Checkpoints.AddRange(ctx1.Result.Checkpoints);
                 merged.Checkpoints.Add(l1End);
-                merged.Checkpoints.Add(l2Start);
                 merged.Checkpoints.AddRange(ctx2.Result.Checkpoints);
                 merged.Hazards.AddRange(ctx1.Result.Hazards);
                 merged.Hazards.AddRange(ctx2.Result.Hazards);
@@ -323,6 +363,8 @@ namespace WeatherForSale.EditorTools
                 merged.FinishTop = ctx2.Result.FinishTop + offset;
                 merged.SuctionSpotYaw = ctx2.Result.SuctionSpotYaw;
                 merged.HazardTopY = Mathf.Min(ctx1.Result.HazardTopY, ctx2.Result.HazardTopY);
+                merged.Level2Lift = lift;
+                merged.Level2StartZ = l2NearEdgeZ;
                 merged.RecomputeCourseBounds();
 
                 Debug.Log("[MapLevelBuilder] Built merged " + mapId + ": level 2 offset " + offset + ", " + steps
@@ -355,13 +397,11 @@ namespace WeatherForSale.EditorTools
             Checkpoint cp = trigger.AddComponent<Checkpoint>();
             pad.name = "Checkpoint_L1End";
             trigger.name = "Checkpoint_L1End_Trigger";
-            Transform cloth = c.Course.Find("Finish_Flag_Cloth");
-            Transform pole = c.Course.Find("Finish_Flag_Pole");
-            if (pole != null) pole.name = "Checkpoint_L1End_Flag_Pole";
-            if (cloth != null)
+            // Checkpoints have no flag (the HUD pops "Checkpoint!"): drop level 1's finish flag.
+            foreach (string part in new[] { "Finish_Flag_Cloth", "Finish_Flag_Pole" })
             {
-                cloth.name = "Checkpoint_L1End_Flag_Cloth";
-                SetFields(cp, ("tintRenderer", cloth.GetComponent<Renderer>()));
+                Transform flag = c.Course.Find(part);
+                if (flag != null) Object.DestroyImmediate(flag.gameObject);
             }
             return cp;
         }
@@ -728,6 +768,22 @@ namespace WeatherForSale.EditorTools
             return b;
         }
 
+        /// <summary>
+        /// Destroys the direct children of <paramref name="parent"/> whose names start with "Secret" (the secret-branch
+        /// pads, geysers and their islands). Used for level 1 of a merged map, whose Shard is removed. Returns the count.
+        /// </summary>
+        public static int RemoveSecretBranch(Transform parent)
+        {
+            if (parent == null) return 0;
+            var doomed = new List<GameObject>();
+            foreach (Transform child in parent)
+            {
+                if (child.name.StartsWith("Secret")) doomed.Add(child.gameObject);
+            }
+            foreach (GameObject go in doomed) Object.DestroyImmediate(go);
+            return doomed.Count;
+        }
+
         /// <summary>A stone column rising out of the water under a pad (visual only; the pad has the collider).</summary>
         private static void Pillar(Context c, string name, float x, float z, float topY, float bottomY, float radius, Material material)
         {
@@ -775,8 +831,7 @@ namespace WeatherForSale.EditorTools
                 HidePad(c, cp.transform.parent.gameObject);
             else
                 Pillar(c, name + "_Pillar", x, z, topY - 0.9f, pillarBottomY, size * 0.5f - 0.3f, pillarMaterial);
-            Renderer cloth = AddFlag(c, name + "_Flag", new Vector3(x + size * 0.5f - 0.5f, topY, z), c.In.CheckpointMaterial);
-            SetFields(cp, ("tintRenderer", cloth));
+            // No flag (play-test): reaching it pops "Checkpoint!" on the HUD instead (ObbyHud).
             c.Result.Checkpoints.Add(cp);
             return cp;
         }
@@ -840,8 +895,18 @@ namespace WeatherForSale.EditorTools
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
 
-            // The purple crystal cluster (Meshy model, its own glowing material), centred on the pickup.
+            // The faceted purple Shard crystal (Meshy, from design/ref/Faceted Purple Crystal Shard.png), centred on the pickup.
             float crystalWidth = 1.2f * (crystalScale / 0.4f);
+            MeshyPropBaker.PropMesh shardModel = MeshyPropBaker.BakeProp("Crystal", "ShardCrystal", MeshyPropBaker.ZUp);
+            if (shardModel != null)
+            {
+                float shardHeight = crystalWidth * 1.3f;
+                MeshyPropBaker.PlaceProp(shardModel, "ShardCrystal", visual.transform, new Vector3(0f, -shardHeight * 0.5f, 0f), new Vector3(0f, shardHeight, 0f));
+                ShardPickup meshyPickup = root.AddComponent<ShardPickup>();
+                SetFields(meshyPickup, ("mapId", mapId.ToLowerInvariant()), ("visual", visual.transform));
+                c.Result.Shards.Add(meshyPickup);
+                return meshyPickup;
+            }
             if (PlacePrefab(CrystalOnlyPrefab(), visual.transform, position + Vector3.down * crystalWidth * 0.6f, crystalWidth) != null)
             {
                 ShardPickup crystalPickup = root.AddComponent<ShardPickup>();

@@ -21,6 +21,9 @@ namespace WeatherForSale.Shop
 
         [Tooltip("Map art used on the map-select button.")]
         public Sprite thumbnail;
+
+        [Tooltip("The map's weather colour: the map name and Loading text on the Loading screen use it.")]
+        public Color themeColour = Color.white;
     }
 
     /// <summary>

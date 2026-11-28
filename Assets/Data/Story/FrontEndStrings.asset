@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b90873eb35c3a2947ba6663347dd7ba7, type: 3}
+  m_Name: FrontEndStrings
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Story.FrontEndStrings
+  modeTitle: Choose a mode
+  storyModeLabel: Story Mode
+  stageModeLabel: Stage
+  stageLockedText: Unlocks after you clear Story Mode
+  optionTitle: Options
+  volumeAllLabel: All
+  volumeMusicLabel: Music
+  volumeSfxLabel: SFX
+  backLabel: Back
+  quitLabel: Quit
+  levelSelectTitle: Choose a stage
+  secretLockedLabel: ???
+  secretUnlockedLabel: Secret Boss
+  secretLockedHint: Get the Secret Ending to unlock
+  startLabel: Start
+  shardLabel: Shard
+  starTimeFormat: '{0}  under {1}'
+  anyFinishText: any finish
+  uncleName: Uncle John
+  uncleReturnLines:
+  - I'm back, Sam! The whole way home, people kept stopping me to talk about my amazing
+    nephew.
+  - Four customers, four perfect bottles of weather, all in one day? Sam... you're
+    a natural!
+  skipLabel: Skip
+  continueHint: Tap to continue
+  normalEndingCard: Normal Ending
+  secretEndingCard: Secret Ending
+  storyCompleteTitle: Story Complete!
+  starsLabel: Stars
+  timeLabel: Time
+  secretStarsLabel: Secret Stars
+  secretBossTitle: Tempest
+  menuLabel: Menu

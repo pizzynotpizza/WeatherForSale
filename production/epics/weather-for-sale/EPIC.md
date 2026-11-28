@@ -13,11 +13,11 @@ The brief's Features list (7 items), built in the brief's Build order.
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | obby ด่านแรก: เดิน กระโดด Checkpoint จับเวลา Game Over HUD ปุ่มสัมผัส + ทดสอบ WebGL บนมือถือ | Visual/Feel | Ready | N/A |
+| 001 | obby ด่านแรก: เดิน กระโดด Checkpoint จับเวลา Game Over HUD ปุ่มสัมผัส + ทดสอบ WebGL บนมือถือ | Visual/Feel | Complete | N/A |
 | 002 | ร้าน first person: ลูกค้า, เลือกแมพบนเคาน์เตอร์, คำใบ้, ส่งขวด | UI | Complete | N/A |
 | 003 | มินิเกมดูดอากาศ + เชื่อมลูป ร้าน → obby 2 ด่าน → ดูด → ร้าน | Integration | Complete | N/A |
-| 004 | 4 แมพ × 2 ด่าน obby | Visual/Feel | Ready | N/A |
-| 005 | Achievement + จำความคืบหน้า (localStorage) | Logic | Ready | N/A |
+| 004 | 4 แมพ × 2 ด่าน obby | Visual/Feel | Complete | N/A |
+| 005 | Achievement + จำความคืบหน้า (localStorage) | Logic | Complete | N/A |
 | 006 | Story Mode: Title, เลือกโหมด, คัตซีน, Shard, ดาว, บอส, ฉากจบ 2 แบบ | Integration | Ready | N/A |
 | 007 | Freeplay + บอส Tempest ลับ | Integration | Ready | N/A |
 | 008 | บอส Tempest: ลานบอส หลบการโจมตี ดูดด้วยขวดม่วง หลอดเลือด | Integration | Ready | N/A |

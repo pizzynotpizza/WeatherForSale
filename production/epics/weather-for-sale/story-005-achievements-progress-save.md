@@ -1,12 +1,12 @@
 # Story 005: Achievement + จำความคืบหน้า (localStorage)
 
 > **Epic**: Weather for Sale
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: M
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: [set by /dev-story when implementation begins]
+> **Last Updated**: 2026-11-28
 
 ## Context
 
@@ -56,14 +56,28 @@
 ## Files
 
 - Assets/Plugins/WebGL/LocalStorage.jslib
+- Assets/Scripts/Progress/WeatherForSale.Progress.asmdef
+- Assets/Scripts/Progress/IAchievementSource.cs
+- Assets/Scripts/Progress/ProgressData.cs
 - Assets/Scripts/Progress/IProgressStore.cs
 - Assets/Scripts/Progress/LocalStorageProgressStore.cs
 - Assets/Scripts/Progress/PlayerPrefsProgressStore.cs
 - Assets/Scripts/Progress/ProgressService.cs
 - Assets/Scripts/Progress/AchievementService.cs
-- Assets/Tests/EditMode/Progress/AchievementServiceTests.cs (แนะนำ; tests waived)
-
----
+- Assets/Scripts/Progress/AchievementToast.cs
+- Assets/Data/ProgressService.asset
+- Assets/Scripts/Core/GameLoopController.cs
+- Assets/Scripts/Suction/SuctionMinigame.cs
+- Assets/Scripts/Shop/ShopFlowController.cs
+- Assets/Editor/ObbyTestSceneBuilder.cs
+- Assets/Editor/ShopSceneBuilder.cs
+- Assets/Scenes/Shop.unity
+- Assets/Scenes/Obby_Valley.unity
+- Assets/Scenes/Obby_Desert.unity
+- Assets/Scenes/Obby_Glacier.unity
+- Assets/Scenes/Obby_Rainforest.unity
+- Assets/Tests/EditMode/WeatherForSale.Tests.EditMode.asmdef
+- Assets/Tests/EditMode/Progress/AchievementServiceTests.cs
 
 ## QA Test Cases
 
@@ -84,3 +98,18 @@
 
 - Depends on: `production/epics/weather-for-sale/story-003-suction-minigame-loop.md`
 - Unlocks: `production/epics/weather-for-sale/story-006-story-mode.md`, `production/epics/weather-for-sale/story-007-freeplay-secret-boss.md`
+
+## Completion Notes
+**Completed**: 2026-11-28
+**Criteria**: 6/7 passing (AC3 DEFERRED: close tab/browser and re-upload to itch, check in a WebGL build)
+**Deviations**: ADVISORY: toast size, colour and position are literals in `AchievementToast.cs`, not data
+**Test Evidence**: Assets/Tests/EditMode/Progress/AchievementServiceTests.cs (14/14 passed; waived at qa.level minimal); production/qa/evidence/story-005-achievements-progress-save/achievement-toast.png
+**Reviewed by**: self, no independent review
+
+## Calls beyond the design
+- Unlock notice at top centre below the level timer, 3 s, dark brown panel, built-in font (`AchievementToast.cs`) · kept 2026-11-28
+- Notice text "Achievement Unlocked!" and achievement names set on `Assets/Data/ProgressService.asset` · kept 2026-11-28
+- Deaths counted lifetime, every death in every map including restarted attempts (`GameLoopController.OnDeathCountChanged`) · kept 2026-11-28
+- Best stars and cleared map saved when the Complete screen shows, before Next (`SuctionMinigame.OnContinue`) · kept 2026-11-28
+- Endings and secret boss flag: storage and API only (`RecordEnding`, `SetSecretBossUnlocked`), nothing calls them yet · kept 2026-11-28
+- Save key `weatherforsale.progress` (`ProgressService.StorageKey`) · kept 2026-11-28

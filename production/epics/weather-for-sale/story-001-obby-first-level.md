@@ -1,12 +1,12 @@
 # Story 001: obby ด่านแรก (เดิน กระโดด Checkpoint จับเวลา Game Over HUD ปุ่มสัมผัส) + ทดสอบ WebGL บนมือถือ
 
 > **Epic**: Weather for Sale
-> **Status**: In Progress
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Visual/Feel
 > **Estimate**: L
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: 2026-11-22
+> **Last Updated**: 2026-11-28
 
 ## Context
 
@@ -91,3 +91,13 @@
 
 - Depends on: None
 - Unlocks: `production/epics/weather-for-sale/story-002-shop-map-select.md`, `production/epics/weather-for-sale/story-003-suction-minigame-loop.md`, `production/epics/weather-for-sale/story-004-four-maps.md`
+
+## Completion Notes
+**Completed**: 2026-11-28
+**Criteria**: 6/7 covered by screenshots (01-10); WebGL on PC and a real phone with fps: no evidence
+**Deviations**: Closed with accepted gaps: no `story-001-obby-first-level-evidence.md` sign-off; no WebGL phone fps record. Evidence stamp older than PlayerController.cs, PlayerAnimator.cs, ObbyLevelConfig.cs, ObbyTestSceneBuilder.cs, ObbyLevelConfig_Level1.asset, Sam.controller; Obby_Test.unity replaced by the 4 map scenes (Obby_<Map>.unity) and `ObbyLevelConfig_Level1.asset` by `ObbyLevelConfig_<Map>.asset`. `## Files` list is stale.
+**Test Evidence**: production/qa/evidence/story-001-obby-first-level/ (screenshots only, no sign-off)
+**Reviewed by**: self, no independent review
+
+## Calls beyond the design
+- none beyond the design

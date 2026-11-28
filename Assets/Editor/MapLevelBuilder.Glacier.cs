@@ -151,9 +151,9 @@ namespace WeatherForSale.EditorTools
             // (the middle one cracked) you must stop on, then two icebergs drifting side to side in opposite phase.
             IcePad(c, m, "Causeway_B1", 0f, 1.4f, 38.6f, 1.2f, 6f, 0.10f, m.IceCap);        // z 35.6 - 41.6
             IcePad(c, m, "Causeway_B2", 1.5f, 1.6f, 47.6f, 1.2f, 6f, 0.10f, m.IceCap);      // z 44.6 - 50.6
-            Slab(c, "Post_B1", 1.5f, 1.9f, 54.0f, 1.3f, 1.3f, c.In.PlatformMaterial, m.Pillar, GlacierBottomY);
-            CrackedIceSlab(c, m, "Post_B2", 0f, 2.2f, 57.8f, 1.4f, 1.4f, 0.4f);
-            Slab(c, "Post_B3", -1.5f, 2.5f, 61.6f, 1.3f, 1.3f, c.In.PlatformMaterial, m.Pillar, GlacierBottomY);
+            // (play-test: the three narrow posts were removed) a wide slippery pad, then a cracked slab.
+            IcePad(c, m, "Ice_B3", 0.6f, 1.9f, 55.0f, 2.4f, 4.0f, 0.10f, m.IceCap);      // z 53 - 57, gap 2.4
+            CrackedIceSlab(c, m, "Cracked_B4", -0.4f, 2.2f, 61.0f, 2.2f, 2.2f, 0.4f);       // z 59.9 - 62.1, gap 2.9
             IceFloe(c, m, "Floe_B1", 0f, 2.5f, 66.0f, 2.6f, 2.6f, 1.8f, 6f, 0f);           // z 64.7 - 67.3, x +-1.8
             IceFloe(c, m, "Floe_B2", 0f, 2.5f, 71.6f, 2.6f, 2.6f, 1.8f, 6f, 3f);           // z 70.3 - 72.9, opposite phase
             AddCheckpoint(c, "Checkpoint_2", 0f, 2.8f, 77.0f, 4f, m.Pillar, GlacierBottomY); // z 75 - 79
@@ -539,12 +539,20 @@ namespace WeatherForSale.EditorTools
 
             var spin = new GameObject("Spin");
             spin.transform.SetParent(root.transform, false);
-            Prim(PrimitiveType.Sphere, "Ball", spin.transform, Vector3.zero, Vector3.one * (radius * 2f), m.Snowball);
-            // A few dark flecks so the roll is visible on the white ball.
-            float k = radius / 0.65f;
-            Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(0f, 0.65f, 0.1f) * k, new Vector3(0.22f, 0.02f, 0.22f) * k, m.Crack);
-            Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(0.45f, -0.3f, 0.3f) * k, new Vector3(0.18f, 0.02f, 0.18f) * k, m.Crack, new Vector3(0f, 0f, -60f));
-            Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(-0.4f, 0.1f, -0.4f) * k, new Vector3(0.18f, 0.02f, 0.18f) * k, m.Crack, new Vector3(30f, 0f, 70f));
+            // Meshy packed snowball (its lumps show the roll); else a white sphere with a few dark flecks.
+            MeshyPropBaker.PropMesh snow = MeshyPropBaker.BakeProp("Glacier", "Snowball", MeshyPropBaker.ZUp);
+            if (snow != null)
+            {
+                MeshyPropBaker.PlaceProp(snow, "Ball", spin.transform, Vector3.down * radius, Vector3.one * (radius * 2f));
+            }
+            else
+            {
+                Prim(PrimitiveType.Sphere, "Ball", spin.transform, Vector3.zero, Vector3.one * (radius * 2f), m.Snowball);
+                float k = radius / 0.65f;
+                Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(0f, 0.65f, 0.1f) * k, new Vector3(0.22f, 0.02f, 0.22f) * k, m.Crack);
+                Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(0.45f, -0.3f, 0.3f) * k, new Vector3(0.18f, 0.02f, 0.18f) * k, m.Crack, new Vector3(0f, 0f, -60f));
+                Prim(PrimitiveType.Cylinder, "Fleck", spin.transform, new Vector3(-0.4f, 0.1f, -0.4f) * k, new Vector3(0.18f, 0.02f, 0.18f) * k, m.Crack, new Vector3(30f, 0f, 70f));
+            }
 
             Transform puff = SnowPuff(c, m, name + "_Puff", start, radius);
 

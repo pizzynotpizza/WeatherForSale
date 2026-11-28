@@ -1,0 +1,37 @@
+[14.9] == Route 3: secret boss from Level Select (Freeplay)
+[14.9] in Title
+[15.4] click StartButton in Title
+[16.0] click StageButton in Title
+[17.0] in LevelSelect
+[17.6] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\01-r3-level-select.png
+[17.6] click Secret in LevelSelect
+[18.1] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\02-r3-secret-details.png
+[18.1] click StartButton in LevelSelect
+[19.4] in Boss_Tempest
+[26.0] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\03-r3-boss-suction.png
+[38.1] suction window over: peak fill 0.00, boss HP 5/5
+[55.7] suction window over: peak fill 1.00, boss HP 4/5
+[79.1] suction window over: peak fill 0.00, boss HP 4/5
+[100.5] suction window over: peak fill 0.00, boss HP 4/5
+[122.1] suction window over: peak fill 0.00, boss HP 4/5
+[132.1] suction window over: peak fill 1.00, boss HP 3/5
+[160.2] suction window over: peak fill 0.00, boss HP 3/5
+[174.2] suction window over: peak fill 1.00, boss HP 2/5
+[197.1] suction window over: peak fill 1.00, boss HP 1/5
+[197.5] safety net: Sam put back on the arena 17 time(s) after being thrown off (the bot cannot read the attack warnings)
+[197.5] boss attempt 1: TimeUp (1436 key presses, HP 1, 0 s left)
+[197.5] click ResultButton in Boss_Tempest
+[205.7] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\04-r3-boss-suction.png
+[213.9] suction window over: peak fill 1.00, boss HP 4/5
+[237.4] suction window over: peak fill 0.00, boss HP 4/5
+[255.3] suction window over: peak fill 1.00, boss HP 3/5
+[267.4] suction window over: peak fill 1.00, boss HP 2/5
+[285.0] suction window over: peak fill 1.00, boss HP 1/5
+[301.1] suction window over: peak fill 1.00, boss HP 0/5
+[307.1] safety net: Sam put back on the arena 12 time(s) after being thrown off (the bot cannot read the attack warnings)
+[307.1] boss attempt 2: Won (482 key presses, HP 0, 75 s left)
+[307.9] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\05-r3-boss-sealed.png
+[307.9] click ResultButton in Boss_Tempest
+[309.0] OK   secret boss Continue returns to Level Select
+[310.0] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-boss-v3\06-r3-back-at-level-select.png
+[310.2] RESULT: PASS

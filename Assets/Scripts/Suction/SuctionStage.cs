@@ -44,6 +44,8 @@ namespace WeatherForSale.Suction
 
         private bool running;
         private bool finished;
+        private Transform orbFollow;          // boss fight: the thing being drawn in (replaces the fixed orb spot)
+        private bool moveCamera = true;
         private float cameraBlend;
         private Vector3 cameraFromPosition;
         private Quaternion cameraFromRotation;
@@ -76,6 +78,75 @@ namespace WeatherForSale.Suction
 
         /// <summary>True between <see cref="Begin"/> and the end of the run.</summary>
         public bool IsRunning => running;
+
+        /// <summary>Where the mouth of the held bottle is (what the streaks flow into). Follows the bottle while Sam heaves.</summary>
+        public Vector3 BottleMouth => bottlePosition;
+
+        /// <summary>
+        /// Boss fight entry: Sam keeps his place, turns to face <paramref name="target"/> and goes into the same
+        /// pulling pose with the bottle in his hands; streaks flow from the target into the bottle. The follow
+        /// camera is left alone. Call <see cref="End"/> when the suction is over. Ignored while already running.
+        /// </summary>
+        /// <param name="target">What is drawn in (the tired boss); followed every frame.</param>
+        /// <param name="streakColor">Colour of the streaks.</param>
+        /// <param name="targetRadius">Radius of the cloud of streaks that leave the target, metres.</param>
+        public void BeginFacing(Transform target, Color streakColor, float targetRadius, Color? bottleColour = null)
+        {
+            heldBottleTint = bottleColour;
+            if (running || config == null || player == null || target == null) return;
+            Vector3 flat = target.position - player.transform.position;
+            flat.y = 0f;
+            float yaw = flat.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(flat).eulerAngles.y : player.transform.eulerAngles.y;
+            if (spot == null) spot = new GameObject("SuctionSpot").transform;
+            spot.SetPositionAndRotation(player.transform.position, Quaternion.Euler(0f, yaw, 0f));
+            orbFollow = target;
+            // The follow camera can end up inside Tempest's huge body when he is between it and Sam (the view then shows
+            // only floor and sky). For the suction the camera moves behind Sam, looking past him at the boss.
+            moveCamera = followCamera != null && viewCamera != null;
+            if (moveCamera)
+            {
+                Vector3 toBoss = flat.sqrMagnitude > 0.0001f ? flat.normalized : player.transform.forward;
+                bossCameraPosition = player.transform.position - toBoss * BossCameraBack + Vector3.up * BossCameraUp;
+                Vector3 look = Vector3.Lerp(player.transform.position + Vector3.up * 1.4f, target.position, 0.55f);
+                bossCameraRotation = Quaternion.LookRotation(look - bossCameraPosition, Vector3.up);
+                useBossCamera = true;
+            }
+            bossStreakColor = streakColor;
+            bossTargetRadius = Mathf.Max(0.1f, targetRadius);
+            Begin(null);
+        }
+
+        /// <summary>Counts one press or tap for the yank animation when no minigame drives the gauge (boss fight).</summary>
+        public void NotifyPull()
+        {
+            yank = 1f;
+        }
+
+        /// <summary>Ends a suction started with <see cref="BeginFacing"/>: the bottle goes away, the streaks stop and Sam's animation takes over.</summary>
+        public void End()
+        {
+            if (!running) return;
+            running = false;
+            finished = true;
+            StopStreaks(false);
+            if (heldBottle != null) Destroy(heldBottle.gameObject);
+            heldBottle = null;
+            if (orb != null) orb.gameObject.SetActive(false);
+            orbFollow = null;
+            moveCamera = true;
+            heldBottleTint = null;
+            if (useBossCamera && followCamera != null) followCamera.enabled = true; // back to the normal follow view
+            useBossCamera = false;
+        }
+
+        private const float BossCameraBack = 6.5f;  // metres behind Sam during a boss suction
+        private const float BossCameraUp = 3.2f;    // metres above his feet
+        private bool useBossCamera;
+        private Vector3 bossCameraPosition;
+        private Quaternion bossCameraRotation;
+        private Color? bossStreakColor;
+        private Color? heldBottleTint;
+        private float bossTargetRadius;
 
         private Vector3 idleOrbPosition;
 
@@ -119,6 +190,7 @@ namespace WeatherForSale.Suction
         {
             if (running || config == null) return;
             running = true;
+            finished = false;
             SuctionMapSettings look = config.ForMap(mapId);
 
             foreach (GameObject go in hideDuringSuction)
@@ -135,15 +207,37 @@ namespace WeatherForSale.Suction
                 player.TeleportTo(frame.position, frame.eulerAngles.y);
             }
 
+            // Map suction: Sam may cross the finish mid-glide or mid-jump. End the glide and reset the animator to
+            // standing idle so the pulling pose is layered on a clean pose, not on a glide or fall frame.
+            if (player != null && orbFollow == null)
+            {
+                var glide = player.GetComponent<GlideMode>();
+                if (glide != null && glide.IsGliding) glide.End(true);
+                Animator animator = player.GetComponentInChildren<Animator>();
+                if (animator != null)
+                {
+                    animator.Rebind();
+                    animator.Update(0f);
+                }
+            }
+
             // Camera: stop following (this also un-hides a first-person model) and swing to the front.
-            if (followCamera != null) followCamera.enabled = false;
-            if (viewCamera != null)
+            if (followCamera != null && moveCamera) followCamera.enabled = false;
+            if (viewCamera != null && moveCamera)
             {
                 cameraFromPosition = viewCamera.position;
                 cameraFromRotation = viewCamera.rotation;
-                cameraToPosition = frame.TransformPoint(config.cameraLocalPosition);
-                Vector3 look3 = frame.TransformPoint(config.cameraLookLocal) - cameraToPosition;
-                cameraToRotation = look3.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(look3, Vector3.up) : viewCamera.rotation;
+                if (useBossCamera)
+                {
+                    cameraToPosition = bossCameraPosition;
+                    cameraToRotation = bossCameraRotation;
+                }
+                else
+                {
+                    cameraToPosition = frame.TransformPoint(config.cameraLocalPosition);
+                    Vector3 look3 = frame.TransformPoint(config.cameraLookLocal) - cameraToPosition;
+                    cameraToRotation = look3.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(look3, Vector3.up) : viewCamera.rotation;
+                }
                 cameraBlend = config.cameraMoveSeconds > 0f ? 0f : 1f;
                 ApplyCamera();
             }
@@ -155,8 +249,8 @@ namespace WeatherForSale.Suction
             frameRotation = Quaternion.Euler(0f, frameYaw, 0f);
             frameRight = frameRotation * Vector3.right;
             frameForward = frameRotation * Vector3.forward;
-            orbPosition = frame.TransformPoint(config.orbLocalPosition);
-            orbSide = config.orbLocalPosition.x < 0f ? -1f : 1f;
+            orbPosition = orbFollow != null ? orbFollow.position : frame.TransformPoint(config.orbLocalPosition);
+            orbSide = frame.InverseTransformPoint(orbPosition).x < 0f ? -1f : 1f;
             FindBones();
             poseWeight = 0f;
             poseTime = 0f;
@@ -164,19 +258,21 @@ namespace WeatherForSale.Suction
             lastGauge = 0f;
             SpawnBottle();
 
-            if (orb != null)
+            Color streakColour = bossStreakColor ?? look.streakColor;
+            float orbRadius = orbFollow != null ? bossTargetRadius : config.orbStartDiameter * 0.5f;
+            if (orb != null && orbFollow == null)
             {
                 orb.position = orbPosition;
                 orb.localScale = Vector3.one * config.orbStartDiameter;
                 orb.gameObject.SetActive(true);
             }
-            ApplyOrbColour(look.orbColor);
+            if (orbFollow == null) ApplyOrbColour(look.orbColor);
 
             float surroundLife = config.streakSurroundRadius / config.streakSpeed;
-            SetupStreaks(surroundStreaks, Vector3.zero, config.streakSurroundRadius, config.streakSurroundRate, surroundLife, look.streakColor);
+            SetupStreaks(surroundStreaks, Vector3.zero, config.streakSurroundRadius, config.streakSurroundRate, surroundLife, streakColour);
             float orbDistance = Vector3.Distance(orbPosition, bottlePosition);
-            SetupStreaks(orbStreaks, orbPosition - bottlePosition, config.orbStartDiameter * 0.5f, config.streakOrbRate,
-                Mathf.Max(0.1f, orbDistance / config.streakSpeed), look.streakColor);
+            SetupStreaks(orbStreaks, orbPosition - bottlePosition, orbRadius, config.streakOrbRate,
+                Mathf.Max(0.1f, orbDistance / config.streakSpeed), streakColour);
 
             if (minigame != null) minigame.Begin();
         }
@@ -185,6 +281,7 @@ namespace WeatherForSale.Suction
         {
             if (!running) return;
 
+            if (orbFollow != null) orbPosition = orbFollow.position;
             KeepFacing();
             poseWeight = Mathf.Min(1f, poseWeight + Time.deltaTime / config.poseBlendSeconds);
             poseTime += Time.deltaTime;
@@ -233,8 +330,27 @@ namespace WeatherForSale.Suction
                 foreach (Renderer r in bottle.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.On;
                 bottle.transform.localScale = bottlePrefab.transform.localScale * config.bottleScale;
                 heldBottle = bottle.transform;
+                if (heldBottleTint.HasValue) TintBottle(bottle, heldBottleTint.Value); // purple glow in the boss fight only; maps use the plain empty bottle
             }
             PlaceBottle();
+        }
+
+        /// <summary>Colours the held bottle (the purple bottle of the boss fight) and gives it a soft glow.</summary>
+        private static void TintBottle(GameObject bottle, Color colour)
+        {
+            var block = new MaterialPropertyBlock();
+            block.SetColor(BaseColorId, colour);
+            block.SetColor("_Color", colour);
+            block.SetColor("_EmissionColor", colour * 0.8f);
+            foreach (Renderer r in bottle.GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(block);
+            var glowGo = new GameObject("BottleGlow");
+            glowGo.transform.SetParent(bottle.transform, false);
+            glowGo.transform.localPosition = Vector3.up * 0.2f;
+            var glow = glowGo.AddComponent<Light>();
+            glow.type = LightType.Point;
+            glow.color = colour;
+            glow.intensity = 2.2f;
+            glow.range = 4f;
         }
 
         private void FindBones()
@@ -359,12 +475,17 @@ namespace WeatherForSale.Suction
                 // A leg that cannot reach its planted foot (body rocked back, legs spread) would leave the
                 // foot hanging in the air: sink the hips just enough for both feet to reach, knees a little bent.
                 // Only ever deepens (never springs back up), so the body does not bob as he rocks.
-                hipSink = Mathf.Max(hipSink, LegShortfall(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition),
-                                    LegShortfall(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition));
+                // Capped: a wide stance would otherwise drop the hips to the floor; past the cap the feet
+                // slide in toward the body (staying on the ground) so Sam keeps standing.
+                hipSink = Mathf.Min(config.poseMaxHipSink, Mathf.Max(hipSink,
+                    LegShortfall(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition),
+                    LegShortfall(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition)));
                 if (hipSink > 0f && hips != null) hips.position += Vector3.down * hipSink;
 
-                SolveLimb(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition, frameForward - frameRight * 0.3f, 1f);
-                SolveLimb(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition, frameForward + frameRight * 0.3f, 1f);
+                Vector3 leftGoal = ReachableFoot(leftUpperLeg, leftLowerLeg, leftFoot, leftFootPosition);
+                Vector3 rightGoal = ReachableFoot(rightUpperLeg, rightLowerLeg, rightFoot, rightFootPosition);
+                SolveLimb(leftUpperLeg, leftLowerLeg, leftFoot, leftGoal, frameForward - frameRight * 0.3f, 1f);
+                SolveLimb(rightUpperLeg, rightLowerLeg, rightFoot, rightGoal, frameForward + frameRight * 0.3f, 1f);
                 leftFoot.rotation = leftFootRotation;
                 rightFoot.rotation = rightFootRotation;
             }
@@ -384,6 +505,22 @@ namespace WeatherForSale.Suction
             if (horizontal >= reach || toGoal.magnitude <= reach) return 0f;
             float verticalAllowed = Mathf.Sqrt(reach * reach - horizontal * horizontal);
             return Mathf.Max(0f, -toGoal.y - verticalAllowed);
+        }
+
+        /// <summary>
+        /// The planted foot position, slid horizontally toward the hip (same height) when the leg is too short
+        /// to reach it, so the foot stays on the ground instead of the hips sinking.
+        /// </summary>
+        private static Vector3 ReachableFoot(Transform upper, Transform lower, Transform foot, Vector3 goal)
+        {
+            float reach = ((lower.position - upper.position).magnitude + (foot.position - lower.position).magnitude) * 0.98f;
+            Vector3 toGoal = goal - upper.position;
+            if (toGoal.magnitude <= reach) return goal;
+            float horizontalMax = Mathf.Sqrt(Mathf.Max(0f, reach * reach - toGoal.y * toGoal.y));
+            Vector2 horizontal = new Vector2(toGoal.x, toGoal.z);
+            if (horizontal.sqrMagnitude < 0.000001f) return goal;
+            horizontal = horizontal.normalized * horizontalMax;
+            return new Vector3(upper.position.x + horizontal.x, goal.y, upper.position.z + horizontal.y);
         }
 
         /// <summary>The bottle sits out from the chest toward the orb, tilted so its mouth leans at it.</summary>

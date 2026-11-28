@@ -1,0 +1,7 @@
+[13.4] == Route 1: boss win -> Secret Ending (Story)
+[14.1] in Cutscene
+[14.1] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars\01-r1-true-intro.png
+[18.1] tapped Space 12 times in Cutscene
+[18.1] in Boss_Tempest
+[25.3] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars\02-r1-boss-suction.png
+[26.1] suction window over: peak fill 1.00, boss HP 4/5

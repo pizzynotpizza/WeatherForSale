@@ -1,0 +1,36 @@
+[11.5] == Route 1: boss win -> Secret Ending (Story)
+[12.3] in Cutscene
+[12.3] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\01-r1-true-intro.png
+[16.2] tapped Space 12 times in Cutscene
+[16.2] in Boss_Tempest
+[23.4] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\02-r1-boss-suction.png
+[24.2] suction window over: peak fill 1.00, boss HP 4/5
+[36.3] suction window over: peak fill 1.00, boss HP 3/5
+[48.3] suction window over: peak fill 1.00, boss HP 2/5
+[69.4] suction window over: peak fill 1.00, boss HP 1/5
+[86.9] suction window over: peak fill 1.00, boss HP 0/5
+[92.8] safety net: Sam put back on the arena 9 time(s) after being thrown off (the bot cannot read the attack warnings)
+[92.8] boss attempt 1: Won (70 key presses, HP 0, 106 s left)
+[93.7] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\03-r1-boss-sealed.png
+[93.7] click ResultButton in Boss_Tempest
+[96.2] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\04-r1-true-ending.png
+[123.5] tapped Space 105 times in Cutscene
+[124.5] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\05-r1-story-complete.png
+[124.5] OK   secret boss unlocked after the Secret Ending
+[124.5] OK   secret stars saved (3)
+[124.5] click MenuButton in Cutscene
+[125.6] OK   Menu returns to Title
+[125.6] == Route 3: secret boss from Level Select (Freeplay)
+[125.7] in Title
+[126.2] click StartButton in Title
+[126.7] click StageButton in Title
+[127.9] in LevelSelect
+[128.4] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\06-r3-level-select.png
+[128.4] click Secret in LevelSelect
+[128.9] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\07-r3-secret-details.png
+[128.9] click StartButton in LevelSelect
+[130.0] in Boss_Tempest
+[136.6] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/secret-stars-v2\08-r3-boss-suction.png
+[148.6] suction window over: peak fill 0.00, boss HP 5/5
+[166.5] suction window over: peak fill 0.00, boss HP 5/5
+[183.9] suction window over: peak fill 1.00, boss HP 4/5

@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddb7f0644ca9c6f44b9ca1fe3db5ccb2, type: 3}
+  m_Name: Cutscene_NormalEnding
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Story.CutsceneData
+  id: 1
+  slides:
+  - background: {fileID: 21300000, guid: 1e017e8c8608d574ba0e8f42c76d77a6, type: 3}
+    backgroundColor: {r: 0.95, g: 0.62, b: 0.45, a: 1}
+    portrait: {fileID: 21300000, guid: 97699195a1fc0f74a9c6292a36b0dfbc, type: 3}
+    portraitRight: 1
+    portraitOverPicture: 0
+    speaker: Uncle John
+    text: Not one customer left empty-handed. Sam... you were born for this. Will
+      you open up with me again tomorrow?
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: bd6d0b4b6cf1a3d4ab82348eac6a3288, type: 3}
+    backgroundColor: {r: 0.95, g: 0.62, b: 0.45, a: 1}
+    portrait: {fileID: 21300000, guid: e3a2413316bbb0c4c90e5402161d845a, type: 3}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: Sam
+    text: Every single day, Uncle John! Rain, snow, sun or wind - just say the word!
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 0486587e62658074391f5f09f262e7da, type: 3}
+    backgroundColor: {r: 0.6, g: 0.64, b: 0.7, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: But high above the rooftops, the sky stays a dull, heavy grey... as if
+      something out there is still waiting.
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 0}
+    backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: Normal Ending
+    flash: 0
+    shake: 0
+    bigCentredText: 1
+  - background: {fileID: 0}
+    backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: 'There''s something you missed...
+
+
+      Collect all 4 Shards'
+    flash: 0
+    shake: 0
+    bigCentredText: 1
+  recordsEnding: 1
+  ending: 0
+  next: 2

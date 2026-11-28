@@ -7,8 +7,10 @@ using WeatherForSale.Obby;
 namespace WeatherForSale.EditorTools
 {
     /// <summary>
-    /// Rainforest layouts (story 004): level 1 "Mushroom Path" (ทางเห็ดเด้ง) and level 2 "Logs and Vines"
-    /// (ท่อนไม้กับเถาวัลย์). The course runs along +Z from the start pad at the origin.
+    /// Rainforest layouts (story 004): level 1 "Mushroom Path" (ทางเห็ดเด้ง: mushrooms only in its first third,
+    /// then drooping giant leaves, then narrow mossy stones and a rising stone, so the jumps do not repeat) and
+    /// level 2 "Logs and Vines" (ท่อนไม้กับเถาวัลย์). The course runs along +Z from the start pad at the origin.
+    /// Swinging Rainbells and vines hang from vines out of the canopy (no trunks stand on the course).
     /// Difficulty pass: every section combines two or more mechanics (bounce through a swinging Rainbell,
     /// bounce onto a collapsing cap, collapsing chains, logs drifting across the lane under a Rainbell,
     /// three chained vines, a tree climb mixing rotten branches and a Rainbell), the safe pads are small
@@ -56,15 +58,33 @@ namespace WeatherForSale.EditorTools
         /// <summary>Level 2, the climb bell's hit centre above the branch before it (it blocks the jump arc).</summary>
         private const float ClimbBellHeightOverBranch = 1.2f;
 
-        // ---- level 1 drifting caps (PlatformMover, side to side)
-        /// <summary>Peak sideways offset of the drifting cap Mushroom_B4, metres.</summary>
-        private const float MushroomDriftTravel = 2.4f;
-        /// <summary>Seconds for one side-to-side cycle of Mushroom_B4 (peak speed 3.8 m/s).</summary>
-        private const float MushroomDriftPeriod = 4.0f;
-        /// <summary>Peak forward/back offset of the drifting cap on the secret branch, metres.</summary>
-        private const float SecretMushroomDriftTravel = 1.4f;
-        /// <summary>Seconds for one cycle of the secret drifting cap.</summary>
-        private const float SecretMushroomDriftPeriod = 3.2f;
+        // ---- level 1 section B: drooping giant leaves (x, top, z); each sinks while stood on
+        private static readonly (float x, float top, float z)[] LeafSteps =
+        {
+            (0f, 5.0f, 43.4f), (1.3f, 5.5f, 47.8f), (-1.3f, 6.0f, 52.2f), (0.6f, 6.4f, 56.6f),
+        };
+        private const float LeafSize = 2.6f;           // leaf width (walkable 2.2 m)
+        private const float LeafSinkSpeed = 0.9f;      // droop while stood on, m/s
+        private const float LeafRiseSpeed = 1.2f;      // springs back after, m/s
+        private const float LeafMaxDroop = 1.6f;       // metres
+
+        // ---- level 1 section C: narrow mossy stones (x, top, z), then a rising stone to the finish
+        private static readonly (float x, float top, float z)[] StoneSteps =
+        {
+            (1.4f, 7.0f, 67.0f), (-0.6f, 7.3f, 70.8f), (1.2f, 7.6f, 74.6f), (-0.4f, 7.9f, 78.4f), (1.0f, 8.2f, 82.6f),
+        };
+        private const float StoneSize = 1.8f;
+        private const float ElevatorSize = 2.2f;
+        private const float ElevatorMidTop = 9.2f;     // top swings 7.8 - 10.6 (finish top 10.2)
+        private const float ElevatorTravel = 1.4f;
+        private const float ElevatorPeriod = 4.4f;
+
+        /// <summary>Level 1 secret branch: leaf / stone size (1.4 m walkable), metres.</summary>
+        private const float SecretLeafSize = 1.8f;
+        /// <summary>Level 1 secret branch: the mossy stone's rise and fall either side of its middle, metres.</summary>
+        private const float SecretStoneTravel = 0.6f;
+        /// <summary>Level 1 secret branch: seconds for one rise and fall of the mossy stone.</summary>
+        private const float SecretStonePeriod = 3.2f;
 
         // ---- level 2 chained vines: three vines, no landing between them. Neighbours swing in opposite
         // phase (half a period apart), so one foothold reaches the far end of its swing as the next one
@@ -201,37 +221,40 @@ namespace WeatherForSale.EditorTools
             Mushroom(c, m, "Mushroom_A7_HighCollapse", 0f, 4.4f, 32.2f, 2.8f, 2.8f, MushroomKind.Collapse);
             AddCheckpoint(c, "Checkpoint_1", 0f, 4.6f, 37.8f, 4f, m.Pillar, PillarBottomY);
 
-            // B: drop onto a bounce mushroom whose flight passes through a swinging Rainbell (bounce in place
-            // to time it, then go just after the bell crosses the middle), land on a high collapsing cap, a
-            // small still cap, then a cap drifting side to side. Checkpoint after the drifting cap.
-            Mushroom(c, m, "Mushroom_B1_Bounce", 0f, 3.4f, 43.6f, 2.6f, 2.6f, MushroomKind.Bounce);
-            RainbellAt(c, m, "Rainbell_B", new Vector3(0f, 8.2f, 46.3f), BellSwingDegrees, BounceBellPeriod, 0f, 4.7f);
-            Mushroom(c, m, "Mushroom_B2_HighCollapse", 0f, 6.2f, 49.2f, 2.6f, 2.6f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_B3", -1.4f, 6.4f, 53.0f, 2.0f, 2.0f, MushroomKind.Static);
-            DriftingMushroom(Mushroom(c, m, "Mushroom_B4_Drifting", 0f, 6.6f, 57.4f, 2.4f, 2.4f, MushroomKind.Static),
-                new Vector3(MushroomDriftTravel, 0f, 0f), MushroomDriftPeriod, 0f);
+            // B (no more mushrooms): four giant leaves on tall stalks climbing toward checkpoint 2. Each leaf
+            // droops while stood on (SinkingPlatform), so waiting makes the next rise too high: keep hopping.
+            // A Rainbell swings across the second leaf.
+            for (int i = 0; i < LeafSteps.Length; i++)
+            {
+                (float x, float top, float z) leaf = LeafSteps[i];
+                DroopLeaf(c, m, "Leaf_B" + (i + 1), leaf.x, leaf.top, leaf.z, LeafSize);
+            }
+            RainbellAt(c, m, "Rainbell_B", new Vector3(LeafSteps[1].x, LeafSteps[1].top + BellHitHeightOverFloor, LeafSteps[1].z),
+                BellSwingDegrees, BounceBellPeriod, 0f, 4.7f);
             AddCheckpoint(c, "Checkpoint_2", 0f, 6.8f, 62.3f, 4f, m.Pillar, PillarBottomY);
 
-            // C (precision): small caps (1.5 m walkable). A still cap, a still cap under a swinging Rainbell
-            // (land after it passes, leave before it returns), two collapsing caps, a tiny still cap to stop
-            // on, then a bounce mushroom whose flight onto the finish crosses a fast Rainbell.
-            Mushroom(c, m, "Mushroom_C1", 1.6f, 6.8f, 67.0f, 2.0f, 2.0f, MushroomKind.Static);
-            Mushroom(c, m, "Mushroom_C2_UnderBell", -0.4f, 7.1f, 70.7f, 2.0f, 2.0f, MushroomKind.Static);
-            RainbellAt(c, m, "Rainbell_C2", new Vector3(-0.4f, 7.1f + BellHitHeightOverFloor, 70.7f), BellSwingDegrees, CapBellPeriod, 0.6f, -4.7f);
-            Mushroom(c, m, "Mushroom_C3_Collapse", 1.4f, 7.3f, 74.4f, 2.0f, 2.0f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_C4_Collapse", -0.6f, 7.5f, 78.1f, 2.0f, 2.0f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_C5_Tiny", 0.8f, 7.7f, 81.8f, 1.8f, 1.8f, MushroomKind.Static);
-            Mushroom(c, m, "Mushroom_C6_Bounce", 0f, 7.2f, 85.6f, 2.4f, 2.4f, MushroomKind.Bounce);
-            RainbellAt(c, m, "Rainbell_Finish", new Vector3(0f, 11.8f, 88.2f), BellSwingDegrees, FinishBellPeriod, 0.3f, 4.7f);
+            // C (precision): narrow mossy stone pillars zigzagging up, a Rainbell across the second and the
+            // last, then a stone that rises and falls (time the ride) up to the finish.
+            for (int i = 0; i < StoneSteps.Length; i++)
+            {
+                (float x, float top, float z) stone = StoneSteps[i];
+                Slab(c, "Stone_C" + (i + 1), stone.x, stone.top, stone.z, StoneSize, StoneSize, c.PadMaterial, m.Pillar, PillarBottomY);
+            }
+            RainbellAt(c, m, "Rainbell_C2", new Vector3(StoneSteps[1].x, StoneSteps[1].top + BellHitHeightOverFloor, StoneSteps[1].z),
+                BellSwingDegrees, CapBellPeriod, 0.6f, -4.7f);
+            (float x, float top, float z) lastStone = StoneSteps[StoneSteps.Length - 1];
+            RainbellAt(c, m, "Rainbell_Finish", new Vector3(lastStone.x, lastStone.top + BellHitHeightOverFloor, lastStone.z),
+                BellSwingDegrees, FinishBellPeriod, 0.3f, 4.7f);
+            RisingStone(c, m, "Stone_Lift", 0.4f, ElevatorMidTop, 87.4f, ElevatorSize, ElevatorTravel, ElevatorPeriod);
             AddFinish(c, 0f, 10.2f, 93.0f, 6f, 7f, m.Pillar, PillarBottomY);
 
-            // Secret branch off checkpoint 1 toward -X: 1.2 m walkable caps, 2.4 - 3.3 m gaps, each a little
-            // higher: still, collapsing, drifting along Z (wait for it to come forward), still with the Shard.
-            Mushroom(c, m, "Secret_1", -5.8f, 4.9f, 38.4f, 1.6f, 1.6f, MushroomKind.Static);
-            Mushroom(c, m, "Secret_2_Collapse", -9.6f, 5.3f, 36.4f, 1.6f, 1.6f, MushroomKind.Collapse);
-            DriftingMushroom(Mushroom(c, m, "Secret_3_Drifting", -13.2f, 5.6f, 38.4f, 1.6f, 1.6f, MushroomKind.Static),
-                new Vector3(0f, 0f, SecretMushroomDriftTravel), SecretMushroomDriftPeriod, 0f);
-            Mushroom(c, m, "Secret_4", -13.6f, 6.0f, 42.6f, 1.6f, 1.6f, MushroomKind.Static);
+            // Secret branch off checkpoint 1 toward -X (no mushrooms, play-test): small drooping leaves 1.4 m
+            // walkable, 2.4 - 3.3 m gaps, each a little higher, a mossy stone rising and falling (time the jump),
+            // then the leaf with the Shard.
+            DroopLeaf(c, m, "Secret_1_Leaf", -5.8f, 4.9f, 38.4f, SecretLeafSize);
+            DroopLeaf(c, m, "Secret_2_Leaf", -9.6f, 5.3f, 36.4f, SecretLeafSize);
+            RisingStone(c, m, "Secret_3_Stone", -13.2f, 5.6f, 38.4f, SecretLeafSize, SecretStoneTravel, SecretStonePeriod);
+            DroopLeaf(c, m, "Secret_4_Leaf", -13.6f, 6.0f, 42.6f, SecretLeafSize);
             AddShard(c, c.MapId, new Vector3(-13.6f, 7.1f, 42.6f), m.Shard, 0.4f, 0.8f);
 
             RainforestScenery(c, m, -12f, 105f, 1001);
@@ -324,12 +347,57 @@ namespace WeatherForSale.EditorTools
             RainforestScenery(c, m, -12f, 112f, 2002);
         }
 
-        /// <summary>Makes a still mushroom drift back and forth (PlatformMover) and carry the player (RideableSurface).</summary>
-        private static void DriftingMushroom(GameObject mushroom, Vector3 travel, float period, float phase)
+        /// <summary>
+        /// A giant leaf on a tall stalk out of the river: a <paramref name="size"/> wide platform that droops
+        /// while stood on (<see cref="SinkingPlatform"/>) and springs back after. Meshy lily-pad leaf when present,
+        /// else a flat green disc. The stalk moves with the leaf.
+        /// </summary>
+        private static GameObject DroopLeaf(Context c, RainforestMats m, string name, float x, float topY, float z, float size)
         {
-            if (!mushroom.TryGetComponent(out RideableSurface _)) mushroom.AddComponent<RideableSurface>();
-            var mover = mushroom.AddComponent<PlatformMover>();
-            SetFields(mover, ("travel", travel), ("periodSeconds", period), ("phaseSeconds", phase));
+            var root = new GameObject(name);
+            root.transform.SetParent(c.Course, false);
+            root.transform.position = new Vector3(x, topY, z);
+            var box = root.AddComponent<BoxCollider>();
+            float walk = size - 0.4f;
+            box.size = new Vector3(walk, 0.3f, walk);
+            box.center = new Vector3(0f, -0.15f, 0f);
+
+            float stalkHeight = topY - (RiverTopY - 1f);
+            Prim(PrimitiveType.Cylinder, "Stalk", root.transform, new Vector3(0f, -0.2f - stalkHeight * 0.5f, 0f),
+                new Vector3(0.28f, stalkHeight * 0.5f, 0.28f), m.Vine);
+            MeshyPropBaker.PropMesh leaf = MeshyPropBaker.BakeProp("Rainforest/LilyPad", "LilyPad", MeshyPropBaker.ZUp);
+            if (leaf != null)
+                MeshyPropBaker.PlaceProp(leaf, "Leaf", root.transform, new Vector3(0f, -0.25f, 0f), new Vector3(size, 0f, size), new Vector3(0f, (x * 47f) % 360f, 0f));
+            else
+                Prim(PrimitiveType.Cylinder, "Leaf", root.transform, new Vector3(0f, -0.1f, 0f), new Vector3(size, 0.1f, size), m.Vine);
+
+            root.AddComponent<RideableSurface>();
+            var sinking = root.AddComponent<SinkingPlatform>();
+            SetFields(sinking, ("sinkSpeed", LeafSinkSpeed), ("riseSpeed", LeafRiseSpeed), ("maxDepth", LeafMaxDroop));
+            return root;
+        }
+
+        /// <summary>
+        /// A mossy stone that rises and falls (<see cref="PlatformMover"/>, vertical sine) around
+        /// <paramref name="midTop"/> by <paramref name="travel"/>, carrying the player (grass-topped rock look).
+        /// </summary>
+        private static GameObject RisingStone(Context c, RainforestMats m, string name, float x, float midTop, float z, float size,
+            float travel, float period)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(c.Course, false);
+            root.transform.position = new Vector3(x, midTop, z);
+            var box = root.AddComponent<BoxCollider>();
+            box.size = new Vector3(size, 0.6f, size);
+            box.center = new Vector3(0f, -0.3f, 0f);
+            var visual = new GameObject("Visual");
+            visual.transform.SetParent(root.transform, false);
+            if (GrassIsland(c, name + "_Island", x, midTop, z, size, size, midTop - 2.2f, null, visual.transform) == null)
+                Prim(PrimitiveType.Cylinder, "Rock", visual.transform, new Vector3(0f, -1.1f, 0f), new Vector3(size, 1.1f, size), m.Pillar);
+            root.AddComponent<RideableSurface>();
+            var mover = root.AddComponent<PlatformMover>();
+            SetFields(mover, ("travel", new Vector3(0f, travel, 0f)), ("periodSeconds", period), ("phaseSeconds", 0f));
+            return root;
         }
 
         /// <summary>A bare bark trunk rising out of the river to just above a stub branch (visual only, no crown, so the camera stays clear).</summary>
@@ -547,7 +615,16 @@ namespace WeatherForSale.EditorTools
             roll.transform.SetParent(root.transform, false);
             roll.transform.localPosition = new Vector3(0f, -radius, 0f);
 
-            // Faceted bark trunk (low-poly mesh with bark ridges), length along X.
+            // Meshy log (mossy bark, ringed ends) stretched to the walkable length and diameter, length along X.
+            MeshyPropBaker.PropMesh meshyLog = LogModel();
+            if (meshyLog != null)
+            {
+                MeshyPropBaker.PlaceProp(meshyLog, "Log", roll.transform, new Vector3(0f, -radius, 0f), new Vector3(length, diameter, diameter))
+                    .GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                return FinishRollingLog(root, roll, radius, peakSpeed, period, phase, travel, travelPeriod, travelPhase);
+            }
+
+            // Fallback: faceted bark trunk (low-poly mesh with bark ridges), length along X.
             var trunk = new GameObject("Trunk");
             trunk.transform.SetParent(roll.transform, false);
             trunk.transform.localScale = new Vector3(length, diameter, diameter);
@@ -575,6 +652,20 @@ namespace WeatherForSale.EditorTools
                     new Vector3(0.24f, 0.16f, 0.24f), m.LogStub, new Vector3(stubAngles[i], 0f, 0f));
             }
 
+            return FinishRollingLog(root, roll, radius, peakSpeed, period, phase, travel, travelPeriod, travelPhase);
+        }
+
+        /// <summary>The Meshy log (Assets/Art/Props/Rainforest/LogV2) baked with its length along X, or null.</summary>
+        private static MeshyPropBaker.PropMesh LogModel()
+        {
+            MeshyPropBaker.PropMesh log = MeshyPropBaker.BakeProp("Rainforest/LogV2", "LogV2", MeshyPropBaker.ZUp);
+            if (log == null || log.Size.x >= log.Size.z) return log;
+            return MeshyPropBaker.BakeProp("Rainforest/LogV2", "LogV2", MeshyPropBaker.ZUp + new Vector3(0f, 90f, 0f));
+        }
+
+        private static GameObject FinishRollingLog(GameObject root, GameObject roll, float radius, float peakSpeed, float period, float phase,
+            Vector3 travel, float travelPeriod, float travelPhase)
+        {
             var surface = root.AddComponent<RollingSurface>();
             SetFields(surface,
                 ("driveDirection", Vector3.forward),
@@ -607,7 +698,11 @@ namespace WeatherForSale.EditorTools
             var pivot = new GameObject(name + "_Pivot");
             pivot.transform.SetParent(c.Course, false);
             pivot.transform.position = pivotPosition;
-            Prim(PrimitiveType.Cylinder, "Rope", pivot.transform, new Vector3(0f, -length * 0.5f, 0f), new Vector3(0.14f, length * 0.5f, 0.14f), m.Vine);
+            MeshyPropBaker.PropMesh vineModel = MeshyPropBaker.BakeProp("Rainforest/Vine", "Vine", MeshyPropBaker.ZUp);
+            if (vineModel != null)
+                MeshyPropBaker.PlaceProp(vineModel, "Rope", pivot.transform, new Vector3(0f, -length, 0f), new Vector3(0.7f, length, 0.7f));
+            else
+                Prim(PrimitiveType.Cylinder, "Rope", pivot.transform, new Vector3(0f, -length * 0.5f, 0f), new Vector3(0.14f, length * 0.5f, 0.14f), m.Vine);
 
             var knot = new GameObject("Foothold");
             knot.transform.SetParent(pivot.transform, false);
@@ -684,19 +779,22 @@ namespace WeatherForSale.EditorTools
             RainbellFlower(c, m, name, pivot, BellStemLength, amplitudeDegrees, period, phase, trunkOffsetX);
         }
 
-        /// <summary>A trunk beside the course with a limb reaching over it, so a pivot hangs from something. Visual only.</summary>
+        /// <summary>Height of the vine a swinging pivot hangs from, metres (it disappears up into the canopy mist).</summary>
+        private const float HangVineHeight = 10f;
+
+        /// <summary>
+        /// A vine dropping out of the canopy to a pivot, so the pivot hangs from something without a trunk standing
+        /// on the course (play-test: the trunks looked like poles in the path). Meshy vine when present. Visual only.
+        /// <paramref name="trunkOffsetX"/> is kept for the callers' layout; nothing stands beside the course now.
+        /// </summary>
         private static void HangFrame(Context c, RainforestMats m, string name, Vector3 pivotPosition, float trunkOffsetX)
         {
-            float trunkX = pivotPosition.x + trunkOffsetX;
-            float trunkTop = pivotPosition.y + 0.7f;
-            float height = trunkTop - PillarBottomY;
-            Prim(PrimitiveType.Cylinder, name + "_Trunk", c.Scenery, new Vector3(trunkX, PillarBottomY + height * 0.5f, pivotPosition.z),
-                new Vector3(1.0f, height * 0.5f, 1.0f), m.Bark);
-
-            float limbLength = Mathf.Abs(trunkOffsetX) + 0.3f;
-            Prim(PrimitiveType.Cylinder, name + "_Limb", c.Scenery,
-                new Vector3(pivotPosition.x + trunkOffsetX * 0.5f, pivotPosition.y + 0.3f, pivotPosition.z),
-                new Vector3(0.45f, limbLength * 0.5f, 0.45f), m.Bark, new Vector3(0f, 0f, 90f));
+            MeshyPropBaker.PropMesh vine = MeshyPropBaker.BakeProp("Rainforest/Vine", "Vine", MeshyPropBaker.ZUp);
+            if (vine != null)
+                MeshyPropBaker.PlaceProp(vine, name + "_HangVine", c.Scenery, pivotPosition, new Vector3(0.7f, HangVineHeight, 0.7f));
+            else
+                Prim(PrimitiveType.Cylinder, name + "_HangVine", c.Scenery, pivotPosition + Vector3.up * (HangVineHeight * 0.5f),
+                    new Vector3(0.14f, HangVineHeight * 0.5f, 0.14f), m.Vine);
         }
 
         /// <summary>
@@ -732,19 +830,43 @@ namespace WeatherForSale.EditorTools
 
             var visual = new GameObject("Visual");
             visual.transform.SetParent(root.transform, false);
-            // Cylinder axis along the branch (root-local Z), 0.5 m thick, flat-ish.
-            Prim(PrimitiveType.Cylinder, "Limb", visual.transform, new Vector3(0f, -0.25f, 0f),
-                new Vector3(width, visualLength * 0.5f, 0.5f), material,
-                Quaternion.LookRotation(Vector3.up, Vector3.forward).eulerAngles);
+            // Meshy branch (its length turned along root-local Z, top at the walkable surface); else a flat cylinder.
+            // Rotten branches use the Meshy rotten branch (grey cracked wood, fungus) so they read as the ones that break.
+            bool rotten = material != null && material.name.Contains("Rotten");
+            MeshyPropBaker.PropMesh limb = rotten ? RottenBranchModel() : MeshyPropBaker.BakeProp("Rainforest/Branch", "Branch", MeshyPropBaker.ZUp);
+            if (limb != null)
+            {
+                const float limbDepth = 0.8f;
+                // The model's long side goes along the branch (root-local Z): turned 90 degrees when it is along X.
+                bool alongX = limb.Size.x >= limb.Size.z;
+                MeshyPropBaker.PlaceProp(limb, "Limb", visual.transform, new Vector3(0f, -limbDepth, 0f),
+                    alongX ? new Vector3(visualLength, limbDepth, width) : new Vector3(width, limbDepth, visualLength),
+                    alongX ? new Vector3(0f, 90f, 0f) : Vector3.zero);
+            }
+            else
+            {
+                // Cylinder axis along the branch (root-local Z), 0.5 m thick, flat-ish.
+                Prim(PrimitiveType.Cylinder, "Limb", visual.transform, new Vector3(0f, -0.25f, 0f),
+                    new Vector3(width, visualLength * 0.5f, 0.5f), material,
+                    Quaternion.LookRotation(Vector3.up, Vector3.forward).eulerAngles);
+            }
             return root;
         }
 
         /// <summary>Turns a branch into a rotten one: pale wood with dark rot spots that breaks after being stood on too long.</summary>
+        /// <summary>The Meshy rotten branch (Assets/Art/Props/Rainforest/RottenBranch), or null when not downloaded.</summary>
+        private static MeshyPropBaker.PropMesh RottenBranchModel()
+            => MeshyPropBaker.BakeProp("Rainforest/RottenBranch", "RottenBranch", MeshyPropBaker.ZUp);
+
         private static void MakeRotten(GameObject branch, RainforestMats m, float topY)
         {
             Transform visual = branch.transform.Find("Visual");
-            Prim(PrimitiveType.Cylinder, "RotSpotA", visual, new Vector3(0.1f, 0.012f, -0.45f), new Vector3(0.32f, 0.012f, 0.32f), m.RotSpot);
-            Prim(PrimitiveType.Cylinder, "RotSpotB", visual, new Vector3(-0.12f, 0.012f, 0.4f), new Vector3(0.28f, 0.012f, 0.28f), m.RotSpot);
+            if (RottenBranchModel() == null)
+            {
+                // Stand-in only: dark rot spots on the pale cylinder.
+                Prim(PrimitiveType.Cylinder, "RotSpotA", visual, new Vector3(0.1f, 0.012f, -0.45f), new Vector3(0.32f, 0.012f, 0.32f), m.RotSpot);
+                Prim(PrimitiveType.Cylinder, "RotSpotB", visual, new Vector3(-0.12f, 0.012f, 0.4f), new Vector3(0.28f, 0.012f, 0.28f), m.RotSpot);
+            }
 
             branch.AddComponent<RideableSurface>();
             var platform = branch.AddComponent<CollapsingPlatform>();

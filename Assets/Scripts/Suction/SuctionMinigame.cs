@@ -232,6 +232,7 @@ namespace WeatherForSale.Suction
             float total = session != null ? session.RunSeconds : collectSeconds;
             bool shard = session != null && session.RunShardCollected;
             int stars = config.StarsFor(map != null ? map.id : null, total);
+            if (loop != null) loop.RecordMapCleared(stars);
             if (completePanel != null) completePanel.Show(strings, new StageResult(stars, total, shard), config.panelInputDelaySeconds);
             else OnNext();
         }

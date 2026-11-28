@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddb7f0644ca9c6f44b9ca1fe3db5ccb2, type: 3}
+  m_Name: Cutscene_TrueIntro
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Story.CutsceneData
+  id: 2
+  slides:
+  - background: {fileID: 21300000, guid: 8c14b4da08da394419bbb2c28cd57c5b, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: CRACK! Thunder splits the sky in two. In a single heartbeat, the whole
+      town is swallowed by darkness.
+    flash: 1
+    shake: 1
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: dc638d385552d8c4897e3bb7b6473b78, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 21300000, guid: 66ffdb656bbb6fb4bb445019f870ff37, type: 3}
+    portraitRight: 1
+    portraitOverPicture: 0
+    speaker: Tempest
+    text: WHO dares bottle MY weather?! Every drop of rain, every gust of wind -
+      it all belongs to ME!
+    flash: 1
+    shake: 1
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: e29797b3a0b0b1e478b4df9d5596cc71, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: Rain, snow, scorching heat and howling wind tear through the streets. People
+      run for cover as the storm goes wild.
+    flash: 0
+    shake: 1
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 91de9dfb324e8b14cb7cd9f8808fbfea, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 0}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: 
+    text: Then Sam's bag begins to glow. The four Shards rise into the sky... and
+      fuse into a shining purple bottle!
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 2b3e6bd854a8c7b448f30a36ea2611cb, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 21300000, guid: 97699195a1fc0f74a9c6292a36b0dfbc, type: 3}
+    portraitRight: 1
+    portraitOverPicture: 0
+    speaker: Uncle John
+    text: Sam! That bottle is the only thing strong enough to hold a storm like this.
+      Catch him!
+    flash: 0
+    shake: 0
+    bigCentredText: 0
+  - background: {fileID: 21300000, guid: 042a8cf37098b574bb9706eab6cec12e, type: 3}
+    backgroundColor: {r: 0.25, g: 0.18, b: 0.35, a: 1}
+    portrait: {fileID: 21300000, guid: e3a2413316bbb0c4c90e5402161d845a, type: 3}
+    portraitRight: 0
+    portraitOverPicture: 0
+    speaker: Sam
+    text: Hey, storm! You want your weather back? Come and get it - because I'm bottling
+      YOU!
+    flash: 0
+    shake: 1
+    bigCentredText: 0
+  recordsEnding: 0
+  ending: 1
+  next: 1

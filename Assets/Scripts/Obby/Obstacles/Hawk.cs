@@ -28,6 +28,8 @@ namespace WeatherForSale.Obby
     {
         /// <summary>Seconds ahead sampled to find the facing direction.</summary>
         private const float LookAheadSeconds = 0.05f;
+        /// <summary>Fastest the hawk turns to face its flight, degrees per second (no snapping round).</summary>
+        private const float TurnDegreesPerSecond = 360f;
 
         [SerializeField, Tooltip("Path shape.")]
         private HawkPattern pattern = HawkPattern.Loop;
@@ -81,7 +83,9 @@ namespace WeatherForSale.Obby
                 case HawkPattern.Dive:
                     return DiveOffset(u);
                 case HawkPattern.Sweep:
-                    return new Vector3(radii.x * Mathf.Sin(a), radii.y * Mathf.Sin(2f * a), radii.z * Mathf.Sin(2f * a));
+                    // A flat oval across the path (never straight back along the same line: play-test, hawks seemed
+                    // to fly backwards), dipping twice per lap.
+                    return new Vector3(radii.x * Mathf.Sin(a), radii.y * Mathf.Sin(2f * a), Mathf.Max(radii.z, 0.6f) * Mathf.Cos(a));
                 default:
                     return new Vector3(radii.x * Mathf.Sin(a), radii.y * Mathf.Sin(a), radii.z * Mathf.Cos(a));
             }
@@ -116,7 +120,13 @@ namespace WeatherForSale.Obby
             Vector3 offset = OffsetAt(t);
             Vector3 ahead = OffsetAt(t + LookAheadSeconds) - offset;
             transform.localPosition = homeLocalPosition + offset;
-            if (ahead.sqrMagnitude > 1e-8f) transform.localRotation = Quaternion.LookRotation(ahead, Vector3.up);
+            // Face the way it flies, mostly level (pitch at most half the climb angle), turning smoothly.
+            Vector3 flat = new Vector3(ahead.x, ahead.y * 0.5f, ahead.z);
+            if (flat.sqrMagnitude > 1e-8f)
+            {
+                Quaternion want = Quaternion.LookRotation(flat, Vector3.up);
+                transform.localRotation = Quaternion.RotateTowards(transform.localRotation, want, TurnDegreesPerSecond * Time.deltaTime);
+            }
 
             float flap = IsDiving ? 0f : flapDegrees * Mathf.Sin(t * 2f * Mathf.PI / flapPeriodSeconds);
             if (leftWing != null) leftWing.localRotation = leftBase * Quaternion.Euler(0f, 0f, -flap);

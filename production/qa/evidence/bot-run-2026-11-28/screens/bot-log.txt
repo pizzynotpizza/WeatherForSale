@@ -1,0 +1,13 @@
+[13.1] == Screens
+[13.1] in Title
+[13.6] click StartButton in Title
+[14.2] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/screens\01-mode-select.png
+[14.2] click StageButton in Title
+[15.9] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/screens\02-level-select.png
+[15.9] click Secret in LevelSelect
+[16.2] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/screens\03-secret-pressed.png
+[16.2] click Map_desert in LevelSelect
+[16.7] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/screens\04-details.png
+[17.5] in Cutscene
+[21.1] screenshot D:/มหาลัย/ปี 3/Semester 1/MI226 337A/Final Game/WeatherForSale/production/qa/evidence/bot-run-2026-11-28/screens\05-opening-note-with-portrait.png
+[21.1] RESULT: PASS

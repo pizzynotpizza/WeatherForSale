@@ -33,7 +33,7 @@ namespace WeatherForSale.EditorTools
         private const string BottlesFolder = "Assets/Art/UI/Bottles";
         private const string PropsFolder = "Assets/Art/Props/";
         private const string CharactersFolder = "Assets/Art/Characters/";
-        private const string Cozy = "Assets/Cozy_UI_Pack_doboui/";
+        private const string Sheet = "Assets/Art/UI/Sheet/"; // the game's own UI sheet (sliced from design/ref)
         private const string KayKitFolder = "Assets/KayKit_Forest_Nature_Pack_1.0_EXTRA/Assets/fbx(unity)/Color1/";
         private const string MapBoardSource = "design/ref/props/MapBoard/MapBoard_Front.png";
         private const string BottleSource = "design/ref/All Bottle.png";
@@ -88,6 +88,117 @@ namespace WeatherForSale.EditorTools
         }
 
         // MapBoard_Front.png (963 x 963): top-left rainforest, top-right glacier, bottom-left valley, bottom-right desert.
+        // Map Select pictures (MapArt_*, 1.6 : 1): smaller than the grid cell and a little lower, clear of the header and frame.
+        internal static readonly Vector2 MapPictureSize = new Vector2(480f, 300f);
+
+        // MapSelectBoard.png (1512 x 975) on the Map Select card, under the header, and where each map is painted on it
+        // (centre and size in card units; measured on the picture: rainforest TL, valley TR, desert BL, glacier BR).
+        internal static readonly Vector2 MapBoardArtCentre = new Vector2(0f, -55f);
+        internal static readonly Vector2 MapBoardArtSize = new Vector2(1147f, 740f);
+
+        internal static Rect PaintedMapRect(string mapId)
+        {
+            switch (mapId)
+            {
+                case "rainforest": return new Rect(-264f, 106f, 493f, 292f);
+                case "valley": return new Rect(261f, 102f, 497f, 300f);
+                case "desert": return new Rect(-266f, -226f, 497f, 311f);
+                case "glacier": return new Rect(265f, -220f, 504f, 330f);
+                default: return new Rect(0f, 0f, 480f, 300f);
+            }
+        }
+        internal static readonly Vector2 MapPictureNudge = new Vector2(0f, -18f);
+
+        /// <summary>
+        /// Gives the counter bottle one generated model per weather (Assets/Art/Props/Bottles/Bottle{Rain,Wind,Sun,Snow}.fbx),
+        /// the same height as the old model, and a <see cref="CounterBottleVariants"/> that shows the one for the map
+        /// just played. The old model stays as the fallback; the click collider stays on the bottle. Run again safely.
+        /// </summary>
+        public static void AddCounterBottleVariants(GameObject bottle, ShopSession session)
+        {
+            Transform old = bottle.transform.Find("Models");
+            if (old != null) Object.DestroyImmediate(old.gameObject);
+            var fallback = new List<Renderer>();
+            var bounds = new Bounds(bottle.transform.position, Vector3.zero);
+            bool any = false;
+            foreach (Renderer r in bottle.GetComponentsInChildren<Renderer>(true))
+            {
+                fallback.Add(r);
+                if (!any) { bounds = r.bounds; any = true; } else bounds.Encapsulate(r.bounds);
+            }
+            float height = any ? Mathf.Max(0.05f, bounds.size.y) : 0.3f;
+            Vector3 bottomWorld = any ? new Vector3(bounds.center.x, bounds.min.y, bounds.center.z) : bottle.transform.position;
+
+            var models = new GameObject("Models").transform;
+            models.SetParent(bottle.transform, false);
+            Vector3 ls = bottle.transform.lossyScale;
+            models.localScale = new Vector3(1f / ls.x, 1f / ls.y, 1f / ls.z); // children sized in metres
+            models.position = bottomWorld;
+            models.rotation = Quaternion.identity;
+
+            string[,] map = { { "rainforest", "BottleRain" }, { "valley", "BottleWind" }, { "desert", "BottleSun" }, { "glacier", "BottleSnow" } };
+            var variants = new List<CounterBottleVariants.Variant>();
+            for (int i = 0; i < map.GetLength(0); i++)
+            {
+                MeshyPropBaker.PropMesh prop = MeshyPropBaker.BakeProp("Bottles", map[i, 1], MeshyPropBaker.ZUp);
+                if (prop == null) { Debug.LogWarning("[ShopSceneBuilder] Missing bottle model " + map[i, 1]); continue; }
+                GameObject go = MeshyPropBaker.PlaceProp(prop, map[i, 1], models, Vector3.zero, new Vector3(0f, height, 0f));
+                go.SetActive(false);
+                variants.Add(new CounterBottleVariants.Variant { mapId = map[i, 0], model = go });
+            }
+            if (variants.Count == 0) { Object.DestroyImmediate(models.gameObject); return; }
+
+            // The old model becomes the fallback (its renderers grouped under one switch).
+            GameObject fallbackRoot = null;
+            foreach (Renderer r in fallback)
+            {
+                if (r.gameObject == bottle) { r.enabled = false; continue; } // a renderer on the root itself: hide for good
+                fallbackRoot ??= r.gameObject;
+            }
+            var comp = bottle.GetComponent<CounterBottleVariants>() ?? bottle.AddComponent<CounterBottleVariants>();
+            var so = new SerializedObject(comp);
+            so.FindProperty("session").objectReferenceValue = session;
+            so.FindProperty("fallback").objectReferenceValue = fallbackRoot;
+            SerializedProperty list = so.FindProperty("variants");
+            list.arraySize = variants.Count;
+            for (int i = 0; i < variants.Count; i++)
+            {
+                list.GetArrayElementAtIndex(i).FindPropertyRelative("mapId").stringValue = variants[i].mapId;
+                list.GetArrayElementAtIndex(i).FindPropertyRelative("model").objectReferenceValue = variants[i].model;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        internal const string PausePrefabPath = "Assets/Prefabs/UI/PauseMenu.prefab";
+
+        /// <summary>Saves the shop's menu button + Pause panel as a prefab so every gameplay scene gets the same one.</summary>
+        internal static void SavePausePrefab(GameObject pauseHost)
+        {
+            EnsureFolder("Assets/Prefabs");
+            EnsureFolder("Assets/Prefabs/UI");
+            PrefabUtility.SaveAsPrefabAsset(pauseHost, PausePrefabPath);
+        }
+
+        /// <summary>
+        /// Adds the shared menu button + Pause panel (<see cref="PausePrefabPath"/>, saved by the shop build) on top of a
+        /// gameplay canvas. Logs a warning and does nothing when the prefab is missing (build the Shop scene first).
+        /// Usage: <c>ShopSceneBuilder.AddPauseMenu(canvasGo.transform);</c>
+        /// </summary>
+        public static void AddPauseMenu(Transform canvas)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PausePrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning("[ShopSceneBuilder] " + PausePrefabPath + " missing; build the Shop scene first for the gameplay menu button.");
+                return;
+            }
+            var pause = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvas);
+            var rt = (RectTransform)pause.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            rt.SetAsLastSibling(); // above the HUD and touch controls
+        }
+
         private static readonly CropRegion[] MapCrops =
         {
             new CropRegion("Map_Rainforest", 0.175f, 0.345f, 0.505f, 0.545f),
@@ -111,7 +222,7 @@ namespace WeatherForSale.EditorTools
         private struct MapSpec
         {
             public string Id, DisplayName, Thumbnail, Bottle;
-            public Vector2 GridPosition; // panel layout mirrors the board: rainforest TL, glacier TR, valley BL, desert BR
+            public Vector2 GridPosition; // panel layout: rainforest TL, valley TR, desert BL, glacier BR
 
             public MapSpec(string id, string displayName, string thumbnail, string bottle, Vector2 grid)
             {
@@ -121,10 +232,10 @@ namespace WeatherForSale.EditorTools
 
         private static readonly MapSpec[] Maps =
         {
-            new MapSpec("rainforest", "Rainforest", "Map_Rainforest", "Bottle_Rain", new Vector2(-300f, 190f)),
-            new MapSpec("valley", "Valley", "Map_Valley", "Bottle_Wind", new Vector2(-300f, -210f)),
-            new MapSpec("desert", "Desert", "Map_Desert", "Bottle_Sun", new Vector2(300f, -210f)),
-            new MapSpec("glacier", "Glacier", "Map_Glacier", "Bottle_Snow", new Vector2(300f, 190f)),
+            new MapSpec("rainforest", "Rainforest", "MapArt_Rainforest", "Bottle_Rain", new Vector2(-300f, 190f)),
+            new MapSpec("valley", "Valley", "MapArt_Valley", "Bottle_Wind", new Vector2(300f, 190f)),
+            new MapSpec("desert", "Desert", "MapArt_Desert", "Bottle_Sun", new Vector2(-300f, -210f)),
+            new MapSpec("glacier", "Glacier", "MapArt_Glacier", "Bottle_Snow", new Vector2(300f, -210f)),
         };
 
         private struct CustomerSpec
@@ -258,56 +369,57 @@ namespace WeatherForSale.EditorTools
         }
 
         // Light KayKit dressing across the street (kept small for the WebGL budget).
+        // The town square replaced the forest (cover / opening CGI); two trees stay for green.
         private static readonly DressingSpec[] Nature =
         {
-            new DressingSpec("Tree_1_A_Color1", -7f, 9f, 0f),
-            new DressingSpec("Tree_2_B_Color1", -3.5f, 11.5f, 40f),
-            new DressingSpec("Tree_3_A_Color1", 2.5f, 10.5f, 90f),
-            new DressingSpec("Tree_4_A_Color1", 6.5f, 9f, 200f),
-            new DressingSpec("Tree_1_C_Color1", 10f, 12f, 10f),
-            new DressingSpec("Tree_5_A_Color1", -11f, 12.5f, 0f),
-            new DressingSpec("Bush_1_A_Color1", -2.7f, 1.5f, 0f),
-            new DressingSpec("Bush_2_B_Color1", 2.8f, 1.4f, 60f),
-            new DressingSpec("Bush_1_C_Color1", -5.5f, 6.5f, 0f),
-            new DressingSpec("Bush_4_A_Color1", 4.5f, 7f, 30f),
-            new DressingSpec("Rock_1_A_Color1", 6f, 4.5f, 0f),
-            new DressingSpec("Rock_2_A_Color1", -4.5f, 4f, 120f),
-            new DressingSpec("Grass_1_A_Color1", -1.5f, 6.5f, 0f),
-            new DressingSpec("Grass_2_A_Color1", 1.8f, 5.8f, 0f),
-            new DressingSpec("Hill_12x12x4_Color1", -16f, 26f, 0f),
-            new DressingSpec("Hill_12x12x8_Color1", 10f, 30f, 0f),
+            new DressingSpec("Tree_2_B_Color1", -13f, 19f, 40f),
+            new DressingSpec("Tree_4_A_Color1", 13.5f, 18f, 200f),
         };
 
-        // ------------------------------------------------------------------ UI sprites (Cozy UI Pack)
+        // ------------------------------------------------------------------ UI sprites (game UI sheet)
 
-        private const string WoodPanelPath = Cozy + "Containers/WoodenContainers/WoodenContainer1.png";
-        private const string HeaderPath = Cozy + "Headers/Header1.png";
-        private const string LabelPath = Cozy + "Labels/Label1.png";
-        private const string RoundWoodPath = Cozy + "Buttons/Round/RoundButton1_wood.png";
-        private const string KnobPath = Cozy + "Buttons/Round/RoundButton1_cream.png";
-        private const string ButtonBluePath = Cozy + "Buttons/Inflated/InflatedButton1_blue.png";
-        private const string ButtonWoodPath = Cozy + "Buttons/Inflated/InflatedButton1_wood.png";
-        private const string BookPath = Cozy + "Containers/BookContainers/SeparateBookElements/OpenBook/OpenBookContainer1.png";
-        private const string BarBackgroundPath = Cozy + "ProgressBars/ProgressBar/ProgressBarBackground.png";
-        private const string BarFillPath = Cozy + "ProgressBars/ProgressBar/ProgressBar1.png";
-        private const string ArrowPath = Cozy + "Arrows/BrownOutline/ArrowSimpleBrownOuline1.png";
-        private const string IconMenuPath = Cozy + "Icons/IconsDefault/128px/IconDefault20_128px.png";
-        private const string IconClosePath = Cozy + "Icons/IconsDefault/128px/IconDefault25_128px.png";
-        private const string IconLockPath = Cozy + "Icons/IconsDefault/128px/IconDefault11_128px.png";
-        private const string IconTrophyPath = Cozy + "Icons/IconsDefault/128px/IconDefault57_128px.png";
+        private const string WoodPanelPath = Sheet + "PanelLarge.png";
+        private const string DialogFramePath = Sheet + "DialogFrame.png"; // the first-sheet frame, kept for the dialog box
+        private const string HeaderPath = Sheet + "RibbonBlue.png";
+        private const string LabelPath = Sheet + "CapsuleWood.png";
+        private const string RoundWoodPath = Sheet + "RoundWood.png";
+        private const string KnobPath = Sheet + "KeyCap.png";
+        private const string ButtonBluePath = Sheet + "BtnBlueA.png"; // UI v2: leaf green (the file name is from the old sheet)
+        private const string ButtonWoodPath = Sheet + "BtnWoodA.png";
+        private const string BookPath = Sheet + "BookOpen.png";
+        private const string BarBackgroundPath = "Assets/Art/UI/Boss/PlayerFrame.png";
+        private const string BarFillPath = "Assets/Art/UI/Boss/PlayerFillGreen.png";
+        private const string ArrowPath = Sheet + "IconBack.png";
+        private const string IconMenuPath = Sheet + "IconMenu.png";
+        private const string IconClosePath = Sheet + "IconClose.png";
+        private const string IconLockPath = Sheet + "IconLock.png";
+        private const string IconTrophyPath = Sheet + "IconTrophy.png";
 
         private sealed class UiSprites
         {
-            public Sprite WoodPanel, Header, Label, RoundWood, Knob, ButtonBlue, ButtonWood, Book,
+            public Sprite WoodPanel, DialogFrame, Header, Label, RoundWood, Knob, ButtonBlue, ButtonWood, Book,
                 BarBackground, BarFill, Arrow, IconMenu, IconClose, IconLock, IconTrophy;
         }
 
         // ------------------------------------------------------------------ entry points
 
         /// <summary>Menu entry: builds and saves the shop scene.</summary>
-        [MenuItem("Weather For Sale/Build Shop Scene")]
+        // Shop.unity is now hand-arranged by the user: the builder never overwrites an existing Shop scene.
+        // To rebuild from scratch on purpose, delete or rename Assets/Scenes/Shop.unity first.
+        private const string LockedScenePath = "Assets/Scenes/Shop.unity";
+
+        private static bool SceneLocked()
+        {
+            if (!System.IO.File.Exists(LockedScenePath)) return false;
+            Debug.LogWarning("[ShopSceneBuilder] " + LockedScenePath + " already exists and is hand-arranged; not rebuilding it. "
+                             + "Delete or rename the scene first to build a new one.");
+            return true;
+        }
+
+        [MenuItem("Weather For Sale/Build Shop Scene (only when Shop.unity is missing)")]
         public static void BuildFromMenu()
         {
+            if (SceneLocked()) return;
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             Build();
         }
@@ -315,6 +427,7 @@ namespace WeatherForSale.EditorTools
         /// <summary>Batch-mode entry point (<c>-executeMethod</c>). Exits non-zero on failure.</summary>
         public static void BuildFromCommandLine()
         {
+            if (SceneLocked()) return;
             try
             {
                 Build();
@@ -365,6 +478,7 @@ namespace WeatherForSale.EditorTools
 
             BuildShell(world.transform, frontZ, backZ);
             BuildNature(world.transform);
+            BuildTown(world.transform);
 
             // --- counter props
             GameObject props = new GameObject("CounterProps");
@@ -378,6 +492,7 @@ namespace WeatherForSale.EditorTools
 
             GameObject bottle = PlacePrefab(PropsFolder + "Bottle/Bottle.prefab", BottlePos + Vector3.up * top, 0f, props.transform);
             BoxCollider bottleCollider = bottle != null ? AddFittedCollider(bottle, 1.6f) : null;
+            if (bottle != null) AddCounterBottleVariants(bottle, AssetDatabase.LoadAssetAtPath<ShopSession>(DataFolder + "/ShopSession.asset"));
             if (bottle != null) bottle.SetActive(false);
 
             GameObject book = BuildBookStandIn(props.transform, BookPos + Vector3.up * top, BookYaw);
@@ -479,7 +594,8 @@ namespace WeatherForSale.EditorTools
                 foreach (MapSpec spec in Maps)
                 {
                     if (spec.Id != entry.id) continue;
-                    if (entry.thumbnail == null) entry.thumbnail = LoadSprite(MapsFolder + "/" + spec.Thumbnail + ".png", Vector4.zero);
+                    // The old board crops (Map_*) give way to the painted map art (MapArt_*).
+                    if (entry.thumbnail == null || entry.thumbnail.name.StartsWith("Map_")) entry.thumbnail = LoadSprite(MapsFolder + "/" + spec.Thumbnail + ".png", Vector4.zero);
                     if (entry.bottleSprite == null) entry.bottleSprite = LoadSprite(BottlesFolder + "/" + spec.Bottle + ".png", Vector4.zero);
                 }
             }
@@ -602,7 +718,8 @@ namespace WeatherForSale.EditorTools
 
         private static Sprite LoadSprite(string path, Vector4 border)
         {
-            ConfigureSprite(path, border);
+            // The game UI sheet keeps the borders set by UiSheetImporter.
+            if (!path.StartsWith("Assets/Art/UI/")) ConfigureSprite(path, border);
             Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
             if (sprite == null) Debug.LogWarning("[ShopSceneBuilder] Sprite not found: " + path);
             return sprite;
@@ -613,6 +730,7 @@ namespace WeatherForSale.EditorTools
             return new UiSprites
             {
                 WoodPanel = LoadSprite(WoodPanelPath, new Vector4(48f, 48f, 48f, 48f)),
+                DialogFrame = LoadSprite(DialogFramePath, Vector4.zero),
                 Header = LoadSprite(HeaderPath, Vector4.zero),
                 Label = LoadSprite(LabelPath, Vector4.zero),
                 RoundWood = LoadSprite(RoundWoodPath, Vector4.zero),
@@ -699,23 +817,39 @@ namespace WeatherForSale.EditorTools
             Box("HeaderBeam", t, new Vector3(0f, height - 0.15f, shopFront), new Vector3(halfWidth * 2f, 0.3f, 0.3f), beam);
 
             // Blue-and-white striped awning sloping down toward the street.
+            // Wider than the shop so it reaches both screen edges, and raised so it frames the top without hiding the street.
             const int stripes = 12;
-            float stripeWidth = halfWidth * 2f / stripes;
+            const float awningHalfWidth = 4.1f;
+            const float awningLift = 0.2f;
+            float stripeWidth = awningHalfWidth * 2f / stripes;
             const float awningLength = 1.3f;
             const float awningDrop = 0.5f;
             float pitch = Mathf.Atan2(awningDrop, awningLength) * Mathf.Rad2Deg;
-            Vector3 awningCentre = new Vector3(0f, height - 0.3f - awningDrop * 0.5f, shopFront + awningLength * 0.5f);
+            Vector3 awningCentre = new Vector3(0f, height - 0.3f - awningDrop * 0.5f + awningLift, shopFront + awningLength * 0.5f);
             for (int i = 0; i < stripes; i++)
             {
-                float x = -halfWidth + stripeWidth * (i + 0.5f);
+                float x = -awningHalfWidth + stripeWidth * (i + 0.5f);
                 GameObject stripe = Box("AwningStripe_" + i, t, new Vector3(x, awningCentre.y, awningCentre.z),
                     new Vector3(stripeWidth, 0.04f, Mathf.Sqrt(awningLength * awningLength + awningDrop * awningDrop)),
                     i % 2 == 0 ? blue : white);
                 stripe.transform.rotation = Quaternion.Euler(pitch, 0f, 0f);
             }
 
+            // Street: the v2 cobblestone texture tiled every 4 m when it is in the project, else the flat colour.
+            Texture2D cobble = AssetDatabase.LoadAssetAtPath<Texture2D>(CobblestonePath);
+            if (cobble != null)
+            {
+                street = GetOrCreateMaterial("Shop_Cobblestone", Color.white);
+                street.SetTexture("_BaseMap", cobble);
+                street.SetTextureScale("_BaseMap", new Vector2(60f / CobbleTileMetres, 40f / CobbleTileMetres));
+                EditorUtility.SetDirty(street);
+            }
             Box("Street", t, new Vector3(0f, -0.06f, shopFront + 20f), new Vector3(60f, 0.1f, 40f), street, true);
         }
+
+        private const string CobblestonePath = "Assets/Art/Shop/ShopPaving.png"; // sunny town-square paving (Meshy text-to-image)
+        /// <summary>One cobblestone texture repeat on the street, metres.</summary>
+        private const float CobbleTileMetres = 4f;
 
         private static GameObject Box(string name, Transform parent, Vector3 position, Vector3 size, Material material, bool receiveOnly = false)
         {
@@ -769,9 +903,45 @@ namespace WeatherForSale.EditorTools
             return mat;
         }
 
-        /// <summary>Stand-in Achievement book (no model yet): blue cover, cream pages, gold star.</summary>
+        /// <summary>
+        /// The storybook town across the square, seen over the counter (cover / opening CGI): a fountain in the
+        /// middle, lamps, flower barrels and market stalls near the shop, blue-roofed houses round the square and
+        /// castle towers behind. Meshy models from Assets/Art/Props/Town; missing ones are skipped.
+        /// </summary>
+        private static void BuildTown(Transform parent)
+        {
+            TownDressing.Piece[] pieces =
+            {
+                // Square furniture kept inside the counter view (between the crystal ball and the map board).
+                new TownDressing.Piece("Fountain", 0.5f, 0f, 19f, 180f, 3.8f),
+                new TownDressing.Piece("StreetLamp", -3.4f, 0f, 10.5f, 200f, 3.4f),
+                new TownDressing.Piece("StreetLamp", 3.6f, 0f, 11f, 160f, 3.4f),
+                new TownDressing.Piece("FlowerBarrel", -2.3f, 0f, 9.5f, 0f, 0.9f),
+                new TownDressing.Piece("FlowerBarrel", 2.6f, 0f, 10f, 60f, 0.9f),
+                new TownDressing.Piece("MarketStall", -5.6f, 0f, 14f, 155f, 2.8f),
+                new TownDressing.Piece("MarketStall", 6f, 0f, 14.5f, 205f, 2.8f),
+                new TownDressing.Piece("FlowerBarrel", -4.2f, 0f, 15.5f, 30f, 0.9f),
+                new TownDressing.Piece("FlowerBarrel", 4.6f, 0f, 16f, 200f, 0.9f),
+                new TownDressing.Piece("StreetLamp", -8.5f, 0f, 18f, 170f, 3.6f),
+                new TownDressing.Piece("StreetLamp", 9f, 0f, 18.5f, 190f, 3.6f),
+                new TownDressing.Piece("TownHouseA", -19f, 0f, 24f, 165f, 9f),
+                new TownDressing.Piece("TownHouseB", -9.5f, 0f, 27f, 180f, 12f),
+                new TownDressing.Piece("TownHouseA", 1f, 0f, 29f, 180f, 9.5f),
+                new TownDressing.Piece("TownHouseB", 11f, 0f, 26.5f, 185f, 12.5f),
+                new TownDressing.Piece("TownHouseA", 20f, 0f, 23f, 200f, 9f),
+                new TownDressing.Piece("TownHouseB", -21f, 0f, 11f, 100f, 11f),
+                new TownDressing.Piece("TownHouseA", 21.5f, 0f, 12f, 260f, 9f),
+                new TownDressing.Piece("CastleTower", -13f, 0f, 44f, 180f, 24f),
+                new TownDressing.Piece("CastleTower", 15f, 0f, 48f, 180f, 28f),
+                new TownDressing.Piece("CastleTower", 2f, 0f, 60f, 180f, 34f),
+            };
+            TownDressing.Place(parent, "Town", pieces);
+        }
+
+        /// <summary>The Achievement book on the counter (the user kept this stand-in): blue cover, cream pages, gold star.</summary>
         private static GameObject BuildBookStandIn(Transform parent, Vector3 position, float yaw)
         {
+
             Material cover = GetOrCreateMaterial("Shop_BookCover", BookCoverColor);
             Material pages = GetOrCreateMaterial("Shop_BookPages", BookPageColor);
             Material gold = GetOrCreateMaterial("Shop_Gold", GoldColor);
@@ -887,7 +1057,7 @@ namespace WeatherForSale.EditorTools
             dialogRt.pivot = new Vector2(0.5f, 0f);
             dialogRt.anchoredPosition = new Vector2(0f, 24f);
             dialogRt.sizeDelta = new Vector2(1560f, 240f);
-            AddImage(dialogRt, sprites.WoodPanel, Color.white, true, true);
+            AddImage(dialogRt, sprites.DialogFrame != null ? sprites.DialogFrame : sprites.WoodPanel, Color.white, true, true);
             Text dialogText = CreateText("Body", dialogRt, font, "", 42, TextAnchor.UpperLeft, DarkBrownText);
             Stretch(dialogText.rectTransform);
             dialogText.rectTransform.offsetMin = new Vector2(64f, 36f);
@@ -919,17 +1089,31 @@ namespace WeatherForSale.EditorTools
             RectTransform mapHost = CreateRect("MapSelect", c);
             Stretch(mapHost);
             MapSelectPanel mapPanel = mapHost.gameObject.AddComponent<MapSelectPanel>();
-            RectTransform mapRoot = CreateOverlay("MapPanelRoot", mapHost, 0.55f);
+            RectTransform mapRoot = CreateOverlay("MapPanelRoot", mapHost, 0.7f);
             RectTransform mapCard = CreateCard("Card", mapRoot, sprites.WoodPanel, new Vector2(0f, -10f), new Vector2(1360f, 960f));
+            // The four maps painted on one parchment (MapSelectBoard.png); the buttons are clear areas over the paintings.
+            Sprite boardArt = LoadSprite(MapsFolder + "/MapSelectBoard.png", Vector4.zero);
+            if (boardArt != null)
+            {
+                RectTransform artRt = CreateRect("BoardArt", mapCard);
+                PlaceCentered(artRt, MapBoardArtCentre, MapBoardArtSize);
+                AddImage(artRt, boardArt, Color.white, false, true).raycastTarget = false;
+            }
             RectTransform mapHeader = CreateRect("Header", mapCard);
-            PlaceCentered(mapHeader, new Vector2(0f, 450f), new Vector2(760f, 140f));
+            PlaceCentered(mapHeader, new Vector2(0f, 450f), SuctionStageBuilder.HeaderSize);
             AddImage(mapHeader, sprites.Header, Color.white, false, false);
-            Text mapTitle = CreateText("Title", mapHeader, font, strings.mapPanelTitle, 54, TextAnchor.MiddleCenter, DarkBrownText);
+            // White with a dark outline (readable on the blue ribbon), on the ribbon's flat face (its upper part),
+            // clear of the star ends; long titles shrink to fit.
+            Text mapTitle = CreateText("Title", mapHeader, font, strings.mapPanelTitle, 50, TextAnchor.MiddleCenter, Color.white);
             Stretch(mapTitle.rectTransform);
-            // The ribbon's flat face is its upper part; the lower part holds the folds. Lift the text so it sits on the face.
-            mapTitle.rectTransform.offsetMin = new Vector2(0f, 45f);
-            mapTitle.rectTransform.offsetMax = new Vector2(0f, 0f);
+            SuctionStageBuilder.PlaceOnHeaderFace(mapTitle.rectTransform);
             mapTitle.fontStyle = FontStyle.Bold;
+            mapTitle.resizeTextForBestFit = true;
+            mapTitle.resizeTextMinSize = 28;
+            mapTitle.resizeTextMaxSize = 50;
+            Outline mapTitleOutline = mapTitle.gameObject.AddComponent<Outline>();
+            mapTitleOutline.effectColor = new Color(0.2f, 0.12f, 0.06f, 0.9f);
+            mapTitleOutline.effectDistance = new Vector2(3f, -3f);
 
             var mapButtons = new Object[Maps.Length];
             var mapImages = new Object[Maps.Length];
@@ -939,8 +1123,10 @@ namespace WeatherForSale.EditorTools
                 MapSpec spec = Maps[i];
                 MapEntry entry = catalog.Count > i ? catalog.maps[i] : null;
                 RectTransform buttonRt = CreateRect("Map_" + spec.DisplayName, mapCard);
-                PlaceCentered(buttonRt, spec.GridPosition, new Vector2(560f, 300f));
-                Image picture = AddImage(buttonRt, entry != null ? entry.thumbnail : null, Color.white, false, true);
+                Rect painted = boardArt != null ? PaintedMapRect(spec.Id) : new Rect(spec.GridPosition + MapPictureNudge, MapPictureSize);
+                PlaceCentered(buttonRt, painted.position, painted.size);
+                // Over the board art the picture is invisible (the painting shows); without the art it is the thumbnail.
+                Image picture = AddImage(buttonRt, entry != null ? entry.thumbnail : null, boardArt != null ? new Color(1f, 1f, 1f, 0f) : Color.white, false, true);
                 Button button = buttonRt.gameObject.AddComponent<Button>();
                 button.targetGraphic = picture;
                 ColorBlock colors = button.colors;
@@ -950,11 +1136,16 @@ namespace WeatherForSale.EditorTools
                 button.colors = colors;
 
                 RectTransform labelRt = CreateRect("Label", buttonRt);
-                PlaceCentered(labelRt, new Vector2(0f, -150f), new Vector2(330f, 84f));
+                PlaceCentered(labelRt, new Vector2(0f, -painted.height * 0.5f + 52f), new Vector2(330f, 84f)); // near the painting's bottom edge
                 AddImage(labelRt, sprites.Label, Color.white, false, false);
                 Text label = CreateText("Text", labelRt, font, spec.DisplayName, 44, TextAnchor.MiddleCenter, DarkBrownText);
                 Stretch(label.rectTransform);
+                label.rectTransform.offsetMin = new Vector2(36f, 6f); // inside the capsule, clear of its rivets
+                label.rectTransform.offsetMax = new Vector2(-36f, -6f);
                 label.fontStyle = FontStyle.Bold;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 26;
+                label.resizeTextMaxSize = 44;
 
                 mapButtons[i] = button;
                 mapImages[i] = picture;
@@ -972,15 +1163,15 @@ namespace WeatherForSale.EditorTools
             RectTransform bookHost = CreateRect("AchievementBook", c);
             Stretch(bookHost);
             AchievementBookPanel bookPanel = bookHost.gameObject.AddComponent<AchievementBookPanel>();
-            RectTransform bookRoot = CreateOverlay("BookRoot", bookHost, 0.55f);
+            RectTransform bookRoot = CreateOverlay("BookRoot", bookHost, 0.7f);
             RectTransform bookImage = CreateRect("Book", bookRoot);
             PlaceCentered(bookImage, Vector2.zero, new Vector2(1400f, 753f));
             AddImage(bookImage, sprites.Book, Color.white, false, true).preserveAspect = true;
             Text bookTitle = CreateText("Title", bookImage, font, strings.achievementsTitle, 64, TextAnchor.MiddleCenter, DarkBrownText);
-            PlaceCentered(bookTitle.rectTransform, new Vector2(-340f, 190f), new Vector2(560f, 100f));
+            PlaceCentered(bookTitle.rectTransform, new Vector2(-290f, 190f), new Vector2(480f, 100f)); // centred on the v2 left page (x -569..-12)
             bookTitle.fontStyle = FontStyle.Bold;
             RectTransform trophy = CreateRect("Trophy", bookImage);
-            PlaceCentered(trophy, new Vector2(-340f, -50f), new Vector2(220f, 220f));
+            PlaceCentered(trophy, new Vector2(-290f, -50f), new Vector2(220f, 220f));
             AddImage(trophy, sprites.IconTrophy, Color.white, false, false).preserveAspect = true;
 
             var rowLabels = new Object[4];
@@ -988,12 +1179,12 @@ namespace WeatherForSale.EditorTools
             AchievementId[] ids = { AchievementId.Die10Times, AchievementId.Earn12Stars, AchievementId.NormalEnding, AchievementId.TrueEnding };
             for (int i = 0; i < ids.Length; i++)
             {
-                float y = 190f - i * 120f;
+                float y = 200f - i * 105f; // the last row stays clear of the bookmark
                 RectTransform lockRt = CreateRect("Lock_" + i, bookImage);
-                PlaceCentered(lockRt, new Vector2(140f, y), new Vector2(72f, 72f));
+                PlaceCentered(lockRt, new Vector2(110f, y), new Vector2(72f, 72f));
                 AddImage(lockRt, sprites.IconLock, Color.white, false, false).preserveAspect = true;
-                Text row = CreateText("Row_" + i, bookImage, font, strings.AchievementLabel(ids[i]), 44, TextAnchor.MiddleLeft, new Color(DarkBrownText.r, DarkBrownText.g, DarkBrownText.b, 0.4f));
-                PlaceCentered(row.rectTransform, new Vector2(420f, y), new Vector2(440f, 80f));
+                Text row = CreateText("Row_" + i, bookImage, font, strings.AchievementLabel(ids[i]), 44, TextAnchor.MiddleLeft, new Color(DarkBrownText.r, DarkBrownText.g, DarkBrownText.b, 0.55f));
+                PlaceCentered(row.rectTransform, new Vector2(350f, y), new Vector2(380f, 80f));
                 rowLabels[i] = row;
                 rowLocks[i] = lockRt.gameObject;
             }
@@ -1012,26 +1203,32 @@ namespace WeatherForSale.EditorTools
             menuRt.pivot = new Vector2(0f, 1f);
             menuRt.anchoredPosition = new Vector2(32f, -32f);
             menuRt.sizeDelta = new Vector2(120f, 136f);
-            Image menuImg = AddImage(menuRt, sprites.RoundWood, Color.white, false, true);
+            // UI v2: one sprite with the bars on the round button; the old button + icon when it is missing.
+            Sprite menuSprite = AssetDatabase.LoadAssetAtPath<Sprite>(Sheet + "MenuButton.png");
+            Image menuImg = AddImage(menuRt, menuSprite != null ? menuSprite : sprites.RoundWood, Color.white, false, true);
+            menuImg.preserveAspect = true;
             Button menuButton = menuRt.gameObject.AddComponent<Button>();
             menuButton.targetGraphic = menuImg;
-            RectTransform menuIcon = CreateRect("Icon", menuRt);
-            PlaceCentered(menuIcon, new Vector2(0f, 8f), new Vector2(72f, 72f));
-            AddImage(menuIcon, sprites.IconMenu, Color.white, false, false).preserveAspect = true;
+            if (menuSprite == null)
+            {
+                RectTransform menuIcon = CreateRect("Icon", menuRt);
+                PlaceCentered(menuIcon, new Vector2(0f, 8f), new Vector2(72f, 72f));
+                AddImage(menuIcon, sprites.IconMenu, Color.white, false, false).preserveAspect = true;
+            }
 
-            RectTransform pauseRoot = CreateOverlay("PauseRoot", pauseHost, 0.6f);
+            RectTransform pauseRoot = CreateOverlay("PauseRoot", pauseHost, 0.7f);
             RectTransform pauseCard = CreateCard("Card", pauseRoot, sprites.WoodPanel, Vector2.zero, new Vector2(980f, 760f));
             Text pauseTitle = CreateText("Title", pauseCard, font, strings.pauseTitle, 72, TextAnchor.MiddleCenter, DarkBrownText);
-            PlaceCentered(pauseTitle.rectTransform, new Vector2(0f, 290f), new Vector2(800f, 110f));
+            PlaceCentered(pauseTitle.rectTransform, new Vector2(0f, 185f), new Vector2(800f, 100f)); // below the v2 panel crest
             pauseTitle.fontStyle = FontStyle.Bold;
             Text allLabel; Text musicLabel; Text sfxLabel;
-            Slider allSlider = CreateVolumeRow("All", pauseCard, font, sprites, strings.volumeAllLabel, 150f, out allLabel);
-            Slider musicSlider = CreateVolumeRow("Music", pauseCard, font, sprites, strings.volumeMusicLabel, 40f, out musicLabel);
-            Slider sfxSlider = CreateVolumeRow("SFX", pauseCard, font, sprites, strings.volumeSfxLabel, -70f, out sfxLabel);
+            Slider allSlider = CreateVolumeRow("All", pauseCard, font, sprites, strings.volumeAllLabel, 85f, out allLabel);
+            Slider musicSlider = CreateVolumeRow("Music", pauseCard, font, sprites, strings.volumeMusicLabel, -20f, out musicLabel);
+            Slider sfxSlider = CreateVolumeRow("SFX", pauseCard, font, sprites, strings.volumeSfxLabel, -125f, out sfxLabel);
             Text backLabel;
-            Button backButton = CreateTextButton("BackButton", pauseCard, sprites.ButtonBlue, font, strings.backLabel, new Vector2(-200f, -250f), new Vector2(340f, 120f), Color.white, out backLabel);
+            Button backButton = CreateTextButton("BackButton", pauseCard, sprites.ButtonBlue, font, strings.backLabel, new Vector2(-200f, -240f), new Vector2(340f, 110f), Color.white, out backLabel);
             Text titleMenuLabel;
-            Button titleMenuButton = CreateTextButton("MenuButton", pauseCard, sprites.ButtonWood, font, strings.menuLabel, new Vector2(200f, -250f), new Vector2(340f, 120f), DarkBrownText, out titleMenuLabel);
+            Button titleMenuButton = CreateTextButton("MenuButton", pauseCard, sprites.ButtonWood, font, strings.menuLabel, new Vector2(200f, -240f), new Vector2(340f, 110f), DarkBrownText, out titleMenuLabel);
             CanvasGroup titleMenuGroup = titleMenuButton.gameObject.AddComponent<CanvasGroup>();
             titleMenuGroup.alpha = 0.45f;
             titleMenuButton.interactable = false; // Title scene arrives in story 006
@@ -1043,6 +1240,7 @@ namespace WeatherForSale.EditorTools
                 ("backButton", backButton), ("backLabel", backLabel),
                 ("titleMenuButton", titleMenuButton), ("titleMenuLabel", titleMenuLabel), ("titleMenuGroup", titleMenuGroup));
             pauseRoot.gameObject.SetActive(false);
+            SavePausePrefab(pauseHost.gameObject);
 
             // --- loading screen (topmost)
             RectTransform loadingHost = CreateRect("Loading", c);
@@ -1075,13 +1273,43 @@ namespace WeatherForSale.EditorTools
                 ("customers", customers), ("pointer", pointer), ("bottleOnCounter", bottle),
                 ("dialog", dialog), ("mapPanel", mapPanel), ("loadingScreen", loading),
                 ("achievementBook", bookPanel), ("pauseMenu", pauseMenu), ("promptText", prompt),
-                ("endOfDayPanel", endRoot.gameObject), ("endOfDayTitle", endTitle), ("endOfDayBody", endBody));
+                ("endOfDayPanel", endRoot.gameObject), ("endOfDayTitle", endTitle), ("endOfDayBody", endBody),
+                ("progress", GetOrCreateAsset<WeatherForSale.Progress.ProgressService>("Assets/Data/ProgressService.asset")));
+
+            // Story Mode (story 006): the last customer served leads to an ending.
+            var story = flow.gameObject.AddComponent<WeatherForSale.Story.StoryModeController>();
+            SetRefs(story, ("flow", flow), ("state", FrontEndSceneBuilder.GetOrCreateModeState()),
+                ("progress", GetOrCreateAsset<WeatherForSale.Progress.ProgressService>("Assets/Data/ProgressService.asset")),
+                ("strings", FrontEndSceneBuilder.GetOrCreateStrings()), ("customers", customers), ("dialog", dialog),
+                ("uncleJohn", GetOrCreateUncleJohn()));
+
+            // The sky grows greyer with each customer served (story 006).
+            var mood = flow.gameObject.AddComponent<ShopSkyMood>();
+            GameObject mainCam = GameObject.Find("Main Camera");
+            SetRefs(mood, ("session", session), ("flow", flow), ("viewCamera", mainCam != null ? mainCam.GetComponent<Camera>() : null),
+                ("sun", GameObject.Find("Sun") != null ? GameObject.Find("Sun").GetComponent<Light>() : null));
+        }
+
+        /// <summary>Uncle John as a CustomerData (his model; the Story controller walks him to the counter).</summary>
+        private static CustomerData GetOrCreateUncleJohn()
+        {
+            const string path = "Assets/Data/Shop/Customer_UncleJohn.asset";
+            var data = AssetDatabase.LoadAssetAtPath<CustomerData>(path);
+            if (data == null)
+            {
+                data = ScriptableObject.CreateInstance<CustomerData>();
+                AssetDatabase.CreateAsset(data, path);
+            }
+            data.displayName = "Uncle John";
+            data.prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Characters/UncleJohn/UncleJohn.prefab");
+            EditorUtility.SetDirty(data);
+            return data;
         }
 
         private static Slider CreateVolumeRow(string name, Transform parent, Font font, UiSprites sprites, string labelText, float y, out Text label)
         {
             label = CreateText(name + "Label", parent, font, labelText, 48, TextAnchor.MiddleLeft, DarkBrownText);
-            PlaceCentered(label.rectTransform, new Vector2(-290f, y), new Vector2(240f, 80f));
+            PlaceCentered(label.rectTransform, new Vector2(-265f, y), new Vector2(200f, 80f)); // clear of the v2 frame
             label.fontStyle = FontStyle.Bold;
 
             RectTransform sliderRt = CreateRect(name + "Slider", parent);
@@ -1094,8 +1322,9 @@ namespace WeatherForSale.EditorTools
 
             RectTransform fillArea = CreateRect("Fill Area", sliderRt);
             Stretch(fillArea);
-            fillArea.offsetMin = new Vector2(6f, 6f);
-            fillArea.offsetMax = new Vector2(-6f, -6f);
+            // Inset past the track's rounded ends so the fill never pokes out of it.
+            fillArea.offsetMin = new Vector2(14f, 9f);
+            fillArea.offsetMax = new Vector2(-14f, -9f);
             RectTransform fill = CreateRect("Fill", fillArea);
             Stretch(fill);
             AddImage(fill, sprites.BarFill, Color.white, true, false);

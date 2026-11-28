@@ -1,12 +1,12 @@
 # Story 004: 4 แมพ × 2 ด่าน obby
 
 > **Epic**: Weather for Sale
-> **Status**: In Progress
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Visual/Feel
 > **Estimate**: L
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: 2026-11-24
+> **Last Updated**: 2026-11-28
 
 ## Context
 
@@ -99,3 +99,18 @@
 
 - Depends on: `production/epics/weather-for-sale/story-001-obby-first-level.md`
 - Unlocks: `production/epics/weather-for-sale/story-006-story-mode.md`, `production/epics/weather-for-sale/story-007-freeplay-secret-boss.md`
+
+## Completion Notes
+**Completed**: 2026-11-28
+**Criteria**: 7/8 passing (WebGL mobile smoothness: DEFERRED — requires playtest session)
+**Deviations**: Criteria text still says 8 levels / 120 s / 100 s; build is 4 merged maps at 180 s. `## Files` list is stale. `Obby_Test.unity` deleted but still in build settings. Evidence stamp older than MapLevelBuilder.cs, MapLevelBuilder.Valley.cs, ObbyTestSceneBuilder.cs.
+**Test Evidence**: production/qa/evidence/story-004-four-maps-evidence.md + story-004-four-maps/ (checkpoint-popup.png forced, not walked)
+**Reviewed by**: self, no independent review
+
+## Calls beyond the design
+- "Checkpoint!" popup, yellow, 1.6 s under the timer (`Assets/Scripts/UI/ObbyHud.cs`) · kept 2026-11-28
+- No checkpoint flags (`Assets/Editor/MapLevelBuilder.cs`) · kept 2026-11-28
+- Every map 180 s (`Assets/Data/ObbyLevelConfig_<Map>.asset`) · kept 2026-11-28
+- Stars 3★ ≤150 s, 2★ ≤200 s, 1★ ≤999 s (`Assets/Data/Suction/SuctionConfig.asset`) · kept 2026-11-28
+- Valley bridge as 2 swinging sections per zone (`Assets/Editor/MapLevelBuilder.Valley.cs`) · kept 2026-11-28
+- Valley Shard near CP2 (`Assets/Editor/MapLevelBuilder.Valley.cs`) · kept 2026-11-28

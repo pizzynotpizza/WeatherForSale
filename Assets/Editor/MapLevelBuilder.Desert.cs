@@ -203,11 +203,10 @@ namespace WeatherForSale.EditorTools
             DesertTumbleweedLane(c, m, "Tumbleweed_A4", 17.0f, -1f, 5.5f, 3, 0.4f);  // from the right
             DesertCanyonDressing(c, m);
 
-            // B (z 20 - 33): four sandstone pillars that crumble 0.55 s after the first step, each 0.3 m higher.
-            DesertCrumblePillar(c, m, "Crumble_1", 0.0f, 0.3f, 21.0f, 1.4f);
-            DesertCrumblePillar(c, m, "Crumble_2", 1.1f, 0.6f, 24.6f, 1.3f);
-            DesertCrumblePillar(c, m, "Crumble_3", -0.3f, 0.9f, 28.3f, 1.2f);
-            DesertCrumblePillar(c, m, "Crumble_4", 0.7f, 1.2f, 32.0f, 1.2f);
+            // B (z 20.5 - 33.5; play-test: the narrow crumbling pillars were removed): two wide sand slabs that sink
+            // while stood on, a 1 m gap between them and a 0.5 m rise, then checkpoint 1.
+            SinkSlab(c, m, "Sink_B1", 0f, 0.6f, 23.5f, 2.6f, 6.0f, DesertSinkLongSpeed);     // z 20.5 - 26.5
+            SinkSlab(c, m, "Sink_B2", 0f, 1.1f, 30.5f, 2.6f, 6.0f, DesertSinkLongSpeed);     // z 27.5 - 33.5
             AddCheckpoint(c, "Checkpoint_1", 0f, 1.4f, 36.6f, 5f, m.Pillar, DesertBottomY);
 
             // C (z 40.1 - 61.5): a narrow 1.8 m path winding in three segments (centre x 0 / 0.6 / 0, overlapping 0.4 m),
@@ -286,13 +285,13 @@ namespace WeatherForSale.EditorTools
 
             // C (precision, z 59.5 - 84): a 1 m ledge in a sandstorm gust (push toward -X, on 1.2 s, off 1.6 s), a narrow
             // 1.6 m path winding in two segments (centre x 2.6 then 2.2) past four cacti on alternating sides (0.54 m
-            // sidesteps, 0.94 m across the bend), two crumbling pillars, and one last sinking slab with a cactus on it.
+            // sidesteps, 0.94 m across the bend), a wide sinking slab, and one last sinking slab with a cactus on it.
             Slab(c, "Ledge_C1", 4.4f, 1.8f, 62.5f, 1.0f, 6.0f, pad, m.Pillar, DesertBottomY);   // z 59.5 - 65.5
             DesertSandstorm(c, m, "Sandstorm_C1", new Vector3(4.4f, 1.8f + 1.75f, 62.5f), new Vector3(5f, 3.5f, 7f),
                 new Vector3(-DesertSandstorm2Wind, 0f, 0f), DesertSandstorm2OnSeconds, DesertSandstorm2OffSeconds, 0f, 5201);
             DesertCactusWeave(c, m, "Ledge_C2", 2.0f, 66.9f, 1.6f, new[] { 2.6f, 2.2f }, 4.6f, 2);     // z 66.9 - 75.7
-            DesertCrumblePillar(c, m, "Crumble_1", 1.0f, 2.2f, 77.4f, 1.2f);                          // z 76.8 - 78.0
-            DesertCrumblePillar(c, m, "Crumble_2", 0.4f, 2.4f, 80.0f, 1.1f);                          // z 79.45 - 80.55
+            // (play-test: the two narrow crumbling pillars were removed) one wide sinking slab instead.
+            SinkSlab(c, m, "Sink_C3", 0.8f, 2.3f, 78.55f, 2.2f, 3.5f, DesertSinkChainSpeed);           // z 76.8 - 80.3
             GameObject last = SinkSlab(c, m, "Sink_D1", 0.2f, 2.6f, 82.7f, 2.4f, 2.4f, DesertSinkChainSpeed);  // z 81.5 - 83.9
             Cactus(c, m, "Cactus_D1", last.transform, -0.4f, 2.6f, 83.0f, 1, 0.8f, 180f, true);         // pass on the right
 
@@ -653,13 +652,17 @@ namespace WeatherForSale.EditorTools
             // Bush_3_A is about 1 m wide and 0.5 m tall; three crossed copies make a ball about 1.2 m across.
             const float bushScale = 1.2f;
             const float halfHeight = 0.25f * bushScale;
-            GameObject a = PlaceModel("Bush_3_A", center + Vector3.down * halfHeight, Vector3.zero, Vector3.one * bushScale, null, spin.transform, 5); // golden dry bush colours
-            if (a == null)
+            MeshyPropBaker.PropMesh weed = MeshyPropBaker.BakeProp("Desert", "Tumbleweed", MeshyPropBaker.ZUp);
+            GameObject a = weed != null
+                ? MeshyPropBaker.PlaceProp(weed, "Ball", spin.transform, Vector3.down * TumbleweedRadius, Vector3.one * (TumbleweedRadius * 2f))
+                : PlaceModel("Bush_3_A", center + Vector3.down * halfHeight, Vector3.zero, Vector3.one * bushScale, null, spin.transform, 5); // golden dry bush colours
+            if (weed == null && a == null)
             {
                 Prim(PrimitiveType.Sphere, "Ball", spin.transform, Vector3.zero, Vector3.one * (TumbleweedRadius * 2f), m.Dry);
             }
-            else
+            else if (weed == null)
             {
+                // Stand-in: two more crossed bushes around the first make the ball.
                 PlaceModel("Bush_3_A", center + new Vector3(0f, 0f, -halfHeight), new Vector3(90f, 0f, 0f), Vector3.one * bushScale, null, spin.transform, 5);
                 PlaceModel("Bush_3_A", center + new Vector3(halfHeight, 0f, 0f), new Vector3(0f, 0f, 90f), Vector3.one * bushScale, null, spin.transform, 5);
             }
@@ -680,58 +683,6 @@ namespace WeatherForSale.EditorTools
             if (waypoints != null && waypoints.Length > 0) SetFields(roll, ("waypoints", waypoints));
 
             if (parent != null) root.transform.SetParent(parent, true);
-            return root;
-        }
-
-        /// <summary>
-        /// A sandstone pillar that crumbles (<see cref="CollapsingPlatform"/>): stepping on it starts a
-        /// <see cref="DesertCrumbleStandSeconds"/> countdown that keeps running if the player leaves; it shakes, drops
-        /// under the quicksand, stays gone <see cref="DesertCrumbleGoneSeconds"/> and rises back. Dark cracks on its top
-        /// tell it apart from the solid pillars. Its collider reaches down to the sand so its sides are solid.
-        /// </summary>
-        private static GameObject DesertCrumblePillar(Context c, DesertMats m, string name, float x, float topY, float z, float size)
-        {
-            var root = new GameObject(name);
-            root.transform.SetParent(c.Course, false);
-            root.transform.position = new Vector3(x, topY, z);
-
-            float depth = Mathf.Max(0.6f, topY - SandTopY);
-            var box = root.AddComponent<BoxCollider>();
-            box.size = new Vector3(size, depth, size);
-            box.center = new Vector3(0f, -depth * 0.5f, 0f);
-
-            var visual = new GameObject("Visual");
-            visual.transform.SetParent(root.transform, false);
-            GameObject island = GrassIsland(c, name + "_Island", x, topY, z, size, size, DesertBottomY, null, visual.transform);
-            if (island == null)
-            {
-                float height = topY - DesertBottomY;
-                Prim(PrimitiveType.Cylinder, "Pillar", visual.transform, new Vector3(0f, -height * 0.5f, 0f),
-                    new Vector3(size, height * 0.5f, size), m.Pillar);
-            }
-
-            // Crack lines on top (fixed pattern scaled to the top), under the visual so they shake and fall with it.
-            float[] angles = { 25f, 80f, 135f, 165f };
-            float[] offsetX = { -0.2f, 0.18f, -0.05f, 0.25f };
-            float[] offsetZ = { 0.15f, -0.18f, 0.25f, -0.05f };
-            float[] lengths = { 0.75f, 0.55f, 0.6f, 0.45f };
-            for (int i = 0; i < angles.Length; i++)
-            {
-                Prim(PrimitiveType.Cube, "Crack", visual.transform, new Vector3(offsetX[i] * size, 0.02f, offsetZ[i] * size),
-                    new Vector3(0.06f, 0.03f, lengths[i] * size), m.Crack, new Vector3(0f, angles[i], 0f));
-            }
-
-            root.AddComponent<RideableSurface>();
-            var platform = root.AddComponent<CollapsingPlatform>();
-            SetFields(platform,
-                ("standSeconds", DesertCrumbleStandSeconds),
-                ("requireContinuousStand", false),
-                ("visual", visual.transform),
-                ("shakeAmplitude", DesertCrumbleShakeAmplitude),
-                ("fallSeconds", DesertCrumbleFallSeconds),
-                ("fallDistance", topY - SandTopY + 1.5f),
-                ("goneSeconds", DesertCrumbleGoneSeconds),
-                ("returnSeconds", DesertCrumbleReturnSeconds));
             return root;
         }
 
@@ -843,19 +794,32 @@ namespace WeatherForSale.EditorTools
             root.transform.SetParent(parent, false);
             root.transform.SetPositionAndRotation(new Vector3(x, groundY, z), Quaternion.Euler(0f, yaw, 0f));
 
-            var body = new GameObject("Body");
-            body.transform.SetParent(root.transform, false);
-            body.transform.localScale = Vector3.one * scale;
-            body.AddComponent<MeshFilter>().sharedMesh = CactusMesh(d);
-            var meshRenderer = body.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = m.Cactus;
-            meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
-
-            AddCactusFlower(root.transform, m, new Vector3(0f, (d.Height + CactusTrunkRadius * 0.55f) * scale, 0f), 0.5f * scale);
-            foreach (CactusArm arm in d.Arms)
+            // Meshy saguaro (flowers included) stretched to the design's height and arm span, so the hit boxes
+            // below still match what is drawn; else the generated trunk-and-arms mesh with flowers.
+            MeshyPropBaker.PropMesh model = MeshyPropBaker.BakeProp("Desert", "Cactus", MeshyPropBaker.ZUp);
+            if (model != null)
             {
-                AddCactusFlower(root.transform, m,
-                    new Vector3(arm.Side * arm.Reach * scale, (arm.BaseY + arm.Rise + CactusArmRadius * 0.55f) * scale, 0f), 0.32f * scale);
+                float reach = CactusTrunkRadius;
+                foreach (CactusArm arm in d.Arms) reach = Mathf.Max(reach, arm.Reach + CactusArmRadius);
+                MeshyPropBaker.PlaceProp(model, "Body", root.transform, Vector3.zero,
+                    new Vector3(reach * 2f * scale, (d.Height + CactusTrunkRadius) * scale, 0f));
+            }
+            else
+            {
+                var body = new GameObject("Body");
+                body.transform.SetParent(root.transform, false);
+                body.transform.localScale = Vector3.one * scale;
+                body.AddComponent<MeshFilter>().sharedMesh = CactusMesh(d);
+                var meshRenderer = body.AddComponent<MeshRenderer>();
+                meshRenderer.sharedMaterial = m.Cactus;
+                meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
+
+                AddCactusFlower(root.transform, m, new Vector3(0f, (d.Height + CactusTrunkRadius * 0.55f) * scale, 0f), 0.5f * scale);
+                foreach (CactusArm arm in d.Arms)
+                {
+                    AddCactusFlower(root.transform, m,
+                        new Vector3(arm.Side * arm.Reach * scale, (arm.BaseY + arm.Rise + CactusArmRadius * 0.55f) * scale, 0f), 0.32f * scale);
+                }
             }
             if (!hazard) return root;
 

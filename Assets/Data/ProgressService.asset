@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 32
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85f30d846f1404e46ad25d8f89a65f0e, type: 3}
+  m_Name: ProgressService
+  m_EditorClassIdentifier: WeatherForSale.Progress::WeatherForSale.Progress.ProgressService
+  rules:
+    deathsNeeded: 10
+    starsNeeded: 12
+  noticeTitle: Achievement Unlocked!
+  achievementNames:
+  - Die 10 times
+  - Earn 12 stars
+  - Normal Ending
+  - True Ending
+  noticeSeconds: 3

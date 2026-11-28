@@ -9,8 +9,14 @@ EditorBuildSettings:
     path: Assets/Scenes/Shop.unity
     guid: 30585ae0334559c4e843d083e21a8b32
   - enabled: 1
-    path: Assets/Scenes/Obby_Test.unity
-    guid: 37b1cc68ce55ad0428e41d34bd2320ae
+    path: Assets/Scenes/Title.unity
+    guid: c2473a1a1ccba824ca6a548b7afbc1e3
+  - enabled: 1
+    path: Assets/Scenes/Cutscene.unity
+    guid: 32cec003b5ea9e4429424a621ea7f440
+  - enabled: 1
+    path: Assets/Scenes/LevelSelect.unity
+    guid: 3da7ca0f4edfc0d429080bdaa5b48bb0
   - enabled: 1
     path: Assets/Scenes/Obby_Rainforest.unity
     guid: e10270a6af5fedb47a4cc0cf6380bf5b
@@ -23,6 +29,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Obby_Glacier.unity
     guid: ad400ef24699eb34cba486abe8ce9550
+  - enabled: 1
+    path: Assets/Scenes/Boss_Tempest.unity
+    guid: 19d8ce80e38d9de438b6d83ca8c74573
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

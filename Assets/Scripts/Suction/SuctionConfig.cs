@@ -169,6 +169,9 @@ namespace WeatherForSale.Suction
         [Tooltip("Share of the lean done by rocking the whole body about the ankles (feet stay planted); the rest bends the spine. 0..1.")]
         [Range(0f, 1f)] public float poseBodyShare = 0.65f;
 
+        [Tooltip("Most the hips may drop so the legs reach the planted feet, metres. Past this the feet slide in toward the body instead, so Sam stands with knees a little bent rather than sinking into the ground.")]
+        [Min(0f)] public float poseMaxHipSink = 0.06f;
+
         [Tooltip("Seconds to blend from the idle pose into the pull.")]
         [Min(0.01f)] public float poseBlendSeconds = 0.35f;
 

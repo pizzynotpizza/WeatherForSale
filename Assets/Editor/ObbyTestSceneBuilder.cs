@@ -30,6 +30,12 @@ namespace WeatherForSale.EditorTools
     /// </summary>
     public static class ObbyTestSceneBuilder
     {
+        /// <summary>Size of the small wooden timer plate shared by every obby level and the boss arena.</summary>
+        internal static readonly Vector2 TimerPlateSize = new Vector2(250f, 96f);
+
+        /// <summary>Font size of the timer digits on that plate.</summary>
+        internal const int TimerFontSize = 48;
+
         private const string ConfigPath = "Assets/Data/ObbyLevelConfig_Level1.asset";
         internal const string MaterialFolder = "Assets/Materials/Obby";
 
@@ -52,6 +58,7 @@ namespace WeatherForSale.EditorTools
 
         // Story 003 loop assets (shared with ShopSceneBuilder / SuctionStageBuilder).
         private const string ShopSessionPath = "Assets/Data/Shop/ShopSession.asset";
+        private const string ProgressServicePath = "Assets/Data/ProgressService.asset";
         private const string MapCatalogPath = "Assets/Data/Shop/MapCatalog.asset";
         private const string LoopConfigPath = "Assets/Data/GameLoopConfig.asset";
         private const string SuctionStringsPath = "Assets/Data/Suction/SuctionStrings.asset";
@@ -371,6 +378,19 @@ namespace WeatherForSale.EditorTools
             lava.GetComponent<MeshRenderer>().sharedMaterial = lavaMat;
             lava.GetComponent<BoxCollider>().isTrigger = true;
             KillVolume killVolume = lava.AddComponent<KillVolume>();
+            KillVolume upperKillVolume = null;
+            if (layout != null && layout.Level2Lift > 0f)
+            {
+                // Level 2 was raised: its water is a second slab at the raised height, from where level 2 begins to
+                // past its far end (the lower slab still serves level 1; where they overlap the upper one shows).
+                GameObject upper = Object.Instantiate(lava, lava.transform.parent);
+                upper.name = theme.HazardName + "_KillVolume_Level2";
+                float startZ = layout.Level2StartZ;
+                float endZ = layout.CourseBounds.max.z + HazardMargin;
+                upper.transform.position = new Vector3(lava.transform.position.x, lava.transform.position.y + layout.Level2Lift, (startZ + endZ) * 0.5f);
+                upper.transform.localScale = new Vector3(hazardSize, 10f, Mathf.Max(1f, endZ - startZ));
+                upperKillVolume = upper.GetComponent<KillVolume>();
+            }
 
             // Spawn point
             GameObject startPoint = new GameObject("StartPoint");
@@ -422,7 +442,8 @@ namespace WeatherForSale.EditorTools
                 ("finish", finish));
             var checkpointRefs = new List<Object>();
             foreach (Checkpoint checkpoint in checkpoints) checkpointRefs.Add(checkpoint);
-            var killRefs = new List<Object> { killVolume }; // the water / lava slab, then every trap of the layout
+            var killRefs = new List<Object> { killVolume };
+            if (upperKillVolume != null) killRefs.Add(upperKillVolume); // the water / lava slab, then every trap of the layout
             if (layout != null)
             {
                 foreach (KillVolume hazard in layout.Hazards) killRefs.Add(hazard);
@@ -450,6 +471,8 @@ namespace WeatherForSale.EditorTools
                 SetRefs(loop,
                     ("config", GetOrCreateAsset<GameLoopConfig>(LoopConfigPath)),
                     ("session", GetOrCreateAsset<ShopSession>(ShopSessionPath)),
+                    ("progress", GetOrCreateAsset<WeatherForSale.Progress.ProgressService>(ProgressServicePath)),
+                    ("modeState", FrontEndSceneBuilder.GetOrCreateModeState()),
                     ("catalog", LoadAssetOrWarn<MapCatalog>(MapCatalogPath)),
                     ("strings", GetOrCreateAsset<SuctionStrings>(SuctionStringsPath)),
                     ("level", manager),
@@ -566,6 +589,12 @@ namespace WeatherForSale.EditorTools
         /// restart. When <paramref name="hasSuction"/> is true the Level Complete panel is not shown at
         /// all (the suction starts in place instead).
         /// </summary>
+        /// <summary>A sprite from the game UI sheet (Assets/Art/UI/Sheet/NAME.png), or null.</summary>
+        internal static Sprite LoadSheetSprite(string name)
+        {
+            return AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/Sheet/" + name + ".png");
+        }
+
         private static ObbyUiRefs BuildUi(ObbyLevelManager manager, ObbyLevelConfig config, PlayerController player, ThirdPersonCamera cam, bool inLoop, bool hasSuction)
         {
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -596,16 +625,21 @@ namespace WeatherForSale.EditorTools
 
             RectTransform stickBase = CreateRect("StickBase", visuals);
             SetCentered(stickBase, new Vector2(260f, 260f));
+            // UI v2 controls (design/ref/Glossy Cartoon Game UI Icon Set.png); the built-in knob when missing.
+            Sprite baseSprite = LoadSheetSprite("JoystickBase"), stickSprite = LoadSheetSprite("JoystickFull");
+            Sprite jumpSprite = LoadSheetSprite("JumpBtn"), jumpPressed = LoadSheetSprite("JumpBtnPressed");
             Image baseImg = stickBase.gameObject.AddComponent<Image>();
-            baseImg.sprite = knobSprite;
-            baseImg.color = new Color(1f, 1f, 1f, 0.25f);
+            baseImg.sprite = baseSprite != null ? baseSprite : knobSprite;
+            baseImg.color = new Color(1f, 1f, 1f, baseSprite != null ? 0.85f : 0.25f);
+            baseImg.preserveAspect = true;
             baseImg.raycastTarget = false;
 
             RectTransform stickKnob = CreateRect("StickKnob", stickBase);
-            SetCentered(stickKnob, new Vector2(120f, 120f));
+            SetCentered(stickKnob, new Vector2(130f, 130f));
             Image knobImg = stickKnob.gameObject.AddComponent<Image>();
-            knobImg.sprite = knobSprite;
-            knobImg.color = new Color(1f, 1f, 1f, 0.6f);
+            knobImg.sprite = stickSprite != null ? stickSprite : knobSprite;
+            knobImg.color = new Color(1f, 1f, 1f, stickSprite != null ? 0.95f : 0.6f);
+            knobImg.preserveAspect = true;
             knobImg.raycastTarget = false;
 
             RectTransform jump = CreateRect("JumpButton", visuals);
@@ -614,11 +648,15 @@ namespace WeatherForSale.EditorTools
             jump.anchoredPosition = new Vector2(-240f, 260f);
             jump.sizeDelta = new Vector2(240f, 240f);
             Image jumpImg = jump.gameObject.AddComponent<Image>();
-            jumpImg.sprite = knobSprite;
-            jumpImg.color = new Color(1f, 1f, 1f, 0.4f);
+            jumpImg.sprite = jumpSprite != null ? jumpSprite : knobSprite;
+            jumpImg.color = new Color(1f, 1f, 1f, jumpSprite != null ? 0.9f : 0.4f);
+            jumpImg.preserveAspect = true;
             jumpImg.raycastTarget = false;
-            Text jumpLabel = CreateText("Label", jump, font, "JUMP", 48, TextAnchor.MiddleCenter, Color.white);
-            Stretch(jumpLabel.rectTransform);
+            if (jumpSprite == null)
+            {
+                Text jumpLabel = CreateText("Label", jump, font, "JUMP", 48, TextAnchor.MiddleCenter, Color.white);
+                Stretch(jumpLabel.rectTransform);
+            }
 
             SetRefs(touch,
                 ("player", player),
@@ -626,21 +664,39 @@ namespace WeatherForSale.EditorTools
                 ("visualsRoot", visuals.gameObject),
                 ("stickBase", stickBase),
                 ("stickKnob", stickKnob),
-                ("jumpButton", jump));
+                ("jumpButton", jump),
+                ("jumpImage", jumpImg),
+                ("jumpPressedSprite", jumpPressed));
 
             // --- HUD
-            Text timerText = CreateText("TimerText", canvasGo.transform, font, "0:00", 80, TextAnchor.UpperCenter, Color.white);
-            timerText.rectTransform.anchorMin = timerText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
-            timerText.rectTransform.pivot = new Vector2(0.5f, 1f);
-            timerText.rectTransform.anchoredPosition = new Vector2(0f, -24f);
-            timerText.rectTransform.sizeDelta = new Vector2(500f, 110f);
+            // Small wooden plate with the digits on it (the same plate as the boss arena).
+            RectTransform timerPlate = CreateRect("TimerPlate", canvasGo.transform);
+            timerPlate.anchorMin = timerPlate.anchorMax = new Vector2(0.5f, 1f);
+            timerPlate.pivot = new Vector2(0.5f, 1f);
+            timerPlate.anchoredPosition = new Vector2(0f, -12f);
+            timerPlate.sizeDelta = TimerPlateSize;
+            Image timerPlateImage = timerPlate.gameObject.AddComponent<Image>();
+            timerPlateImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/Sheet/CapsuleWood.png");
+            timerPlateImage.type = Image.Type.Sliced;
+            timerPlateImage.raycastTarget = false;
+            Text timerText = CreateText("TimerText", timerPlate, font, "0:00", TimerFontSize, TextAnchor.MiddleCenter, Color.white);
+            Stretch(timerText.rectTransform);
             timerText.fontStyle = FontStyle.Bold;
-            timerText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(3f, -3f);
+            timerText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2f, -2f);
 
-            Text fallsText = CreateText("FallsText", canvasGo.transform, font, "Falls: 0", 44, TextAnchor.UpperLeft, Color.white);
-            fallsText.rectTransform.anchorMin = fallsText.rectTransform.anchorMax = new Vector2(0f, 1f);
-            fallsText.rectTransform.pivot = new Vector2(0f, 1f);
-            fallsText.rectTransform.anchoredPosition = new Vector2(32f, -32f);
+            Text checkpointPopup = CreateText("CheckpointPopup", canvasGo.transform, font, "Checkpoint!", 60, TextAnchor.UpperCenter, new Color(1f, 0.92f, 0.35f));
+            checkpointPopup.rectTransform.anchorMin = checkpointPopup.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+            checkpointPopup.rectTransform.pivot = new Vector2(0.5f, 1f);
+            checkpointPopup.rectTransform.anchoredPosition = new Vector2(0f, -124f);
+            checkpointPopup.rectTransform.sizeDelta = new Vector2(700f, 90f);
+            checkpointPopup.fontStyle = FontStyle.Bold;
+            checkpointPopup.gameObject.AddComponent<Outline>().effectDistance = new Vector2(3f, -3f);
+
+            // Top-right: the top-left corner holds the menu button (the same one as the shop).
+            Text fallsText = CreateText("FallsText", canvasGo.transform, font, "Falls: 0", 44, TextAnchor.UpperRight, Color.white);
+            fallsText.rectTransform.anchorMin = fallsText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            fallsText.rectTransform.pivot = new Vector2(1f, 1f);
+            fallsText.rectTransform.anchoredPosition = new Vector2(-32f, -32f);
             fallsText.rectTransform.sizeDelta = new Vector2(500f, 70f);
             fallsText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2f, -2f);
 
@@ -679,6 +735,7 @@ namespace WeatherForSale.EditorTools
                 ("level", manager),
                 ("config", config),
                 ("timerText", timerText),
+                ("checkpointPopupText", checkpointPopup),
                 ("fallsText", fallsText),
                 ("gameOverPanel", gameOver.gameObject),
                 ("gameOverRestartButton", goButton),
@@ -686,11 +743,12 @@ namespace WeatherForSale.EditorTools
                 ("completeSummaryText", cSummary),
                 ("completeRestartButton", inLoop ? null : cButton));
             if (inLoop) cButton.gameObject.name = "NextButton"; // label text is set at runtime from SuctionStrings
+            ShopSceneBuilder.AddPauseMenu(canvasGo.transform); // menu button top-left, as in the shop
             return new ObbyUiRefs
             {
                 Canvas = canvasGo.transform,
                 CompleteButton = cButton,
-                HideDuringSuction = new[] { timerText.gameObject, fallsText.gameObject, pad.gameObject }, // no time limit while collecting
+                HideDuringSuction = new[] { timerPlate.gameObject, fallsText.gameObject, pad.gameObject }, // no time limit while collecting
             };
         }
 
@@ -735,14 +793,14 @@ namespace WeatherForSale.EditorTools
             return key;
         }
 
-        private static RectTransform CreateRect(string name, Transform parent)
+        internal static RectTransform CreateRect(string name, Transform parent)
         {
             GameObject go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             return (RectTransform)go.transform;
         }
 
-        private static void Stretch(RectTransform rt)
+        internal static void Stretch(RectTransform rt)
         {
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
@@ -751,7 +809,7 @@ namespace WeatherForSale.EditorTools
             rt.offsetMax = Vector2.zero;
         }
 
-        private static void SetCentered(RectTransform rt, Vector2 size)
+        internal static void SetCentered(RectTransform rt, Vector2 size)
         {
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
@@ -759,13 +817,13 @@ namespace WeatherForSale.EditorTools
             rt.anchoredPosition = Vector2.zero;
         }
 
-        private static void PlaceCentered(RectTransform rt, Vector2 position, Vector2 size)
+        internal static void PlaceCentered(RectTransform rt, Vector2 position, Vector2 size)
         {
             SetCentered(rt, size);
             rt.anchoredPosition = position;
         }
 
-        private static Text CreateText(string name, Transform parent, Font font, string content, int size, TextAnchor anchor, Color color)
+        internal static Text CreateText(string name, Transform parent, Font font, string content, int size, TextAnchor anchor, Color color)
         {
             RectTransform rt = CreateRect(name, parent);
             Text text = rt.gameObject.AddComponent<Text>();
@@ -780,7 +838,7 @@ namespace WeatherForSale.EditorTools
             return text;
         }
 
-        private static RectTransform CreatePanel(string name, Transform parent, Sprite sprite, Color color)
+        internal static RectTransform CreatePanel(string name, Transform parent, Sprite sprite, Color color)
         {
             RectTransform rt = CreateRect(name, parent);
             Stretch(rt);
@@ -792,7 +850,7 @@ namespace WeatherForSale.EditorTools
             return rt;
         }
 
-        private static Button CreateButton(string name, Transform parent, Sprite sprite, Font font, string label, Vector2 position, Vector2 size)
+        internal static Button CreateButton(string name, Transform parent, Sprite sprite, Font font, string label, Vector2 position, Vector2 size)
         {
             RectTransform rt = CreateRect(name, parent);
             PlaceCentered(rt, position, size);
@@ -814,7 +872,7 @@ namespace WeatherForSale.EditorTools
         /// jump) driven by <see cref="PlayerAnimator"/>. Falls back to the old capsule + facing marker
         /// when the Sam assets are missing, so the level still builds.
         /// </summary>
-        private static void AddPlayerVisual(GameObject playerGo, PlayerController player, Material playerMat, Material whiteMat)
+        internal static void AddPlayerVisual(GameObject playerGo, PlayerController player, Material playerMat, Material whiteMat)
         {
             GameObject samModel = AssetDatabase.LoadAssetAtPath<GameObject>(SamRigPath);
             AnimatorController controller = samModel != null ? GetOrCreateSamController() : null;
@@ -1021,7 +1079,7 @@ namespace WeatherForSale.EditorTools
             return mat;
         }
 
-        private static void EnsureFolder(string path)
+        internal static void EnsureFolder(string path)
         {
             if (AssetDatabase.IsValidFolder(path)) return;
             int slash = path.LastIndexOf('/');
@@ -1034,7 +1092,7 @@ namespace WeatherForSale.EditorTools
             if (scenes.RemoveAll(s => s.path == scenePath) > 0) EditorBuildSettings.scenes = scenes.ToArray();
         }
 
-        private static void AddToBuildSettings(string scenePath)
+        internal static void AddToBuildSettings(string scenePath)
         {
             var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
             if (scenes.Exists(s => s.path == scenePath)) return;
@@ -1044,7 +1102,7 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ serialization helpers
 
-        private static void SetRefs(Object target, params (string field, Object value)[] values)
+        internal static void SetRefs(Object target, params (string field, Object value)[] values)
         {
             SerializedObject so = new SerializedObject(target);
             foreach ((string field, Object value) in values)
@@ -1094,7 +1152,7 @@ namespace WeatherForSale.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetRefArray(Object target, string field, Object[] values)
+        internal static void SetRefArray(Object target, string field, Object[] values)
         {
             SerializedObject so = new SerializedObject(target);
             SerializedProperty prop = so.FindProperty(field);
