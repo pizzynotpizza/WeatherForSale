@@ -8,8 +8,10 @@ using WeatherForSale.Suction;
 namespace WeatherForSale.Core
 {
     /// <summary>
-    /// Moves the player through one map run: obby level 1, obby level 2, the in-place suction at the
-    /// end of level 2 (<see cref="SuctionStage"/>), then back to the shop with the bottle. Lives in
+    /// Moves the player through one map run: the map's obby course (one scene per map since story 004:
+    /// the old level 1 and level 2 merged into one course), the in-place suction at its end
+    /// (<see cref="SuctionStage"/>), then back to the shop with the bottle. A scene with a suction stage
+    /// is always the map's last level; the Next-button path below only serves a multi-scene map. Lives in
     /// every map obby scene. Run totals are kept in <see cref="ShopSession"/>, which
     /// survives scene loads; there is no singleton.
     /// Played directly from the editor without a shop run, it starts a run on this scene's map (or
@@ -40,6 +42,7 @@ namespace WeatherForSale.Core
         [SerializeField, Tooltip("In-place suction started when the map's last level is completed (level 2 scenes only).")]
         private SuctionStage suctionStage;
 
+        private ShardPickup[] shards;
         private bool levelResultRecorded;
         private bool suctionRunning;
         private bool loading;
@@ -82,6 +85,24 @@ namespace WeatherForSale.Core
         private void Start()
         {
             if (nextButtonLabel != null && strings != null) nextButtonLabel.text = strings.levelNextLabel;
+
+            // The map's hidden Shard counts toward the run (the Complete screen's Shard 0/1).
+            shards = FindObjectsByType<ShardPickup>(FindObjectsSortMode.None);
+            foreach (ShardPickup shard in shards) shard.Collected += OnShardCollected;
+        }
+
+        private void OnDestroy()
+        {
+            if (shards == null) return;
+            foreach (ShardPickup shard in shards)
+            {
+                if (shard != null) shard.Collected -= OnShardCollected;
+            }
+        }
+
+        private void OnShardCollected(ShardPickup shard)
+        {
+            if (session != null) session.MarkShardCollected();
         }
 
         /// <summary>
@@ -150,7 +171,8 @@ namespace WeatherForSale.Core
             }
         }
 
-        private bool IsLastLevel => config != null && levelIndex >= Mathf.Max(1, config.levelsPerMap);
+        // A scene that carries the suction stage always ends the map (story 004: one merged scene per map).
+        private bool IsLastLevel => suctionStage != null || (config != null && levelIndex >= Mathf.Max(1, config.levelsPerMap));
 
         private void LoadScene(string sceneName)
         {

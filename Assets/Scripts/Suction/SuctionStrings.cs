@@ -34,7 +34,7 @@ namespace WeatherForSale.Suction
         public string timeLabel = "Time";
         [Tooltip("Total time. {0} = minutes, {1} = seconds.")]
         public string timeValueFormat = "{0:00}:{1:00}";
-        public string keyItemLabel = "Key Item (Shard)";
+        public string keyItemLabel = "Shard";
         [Tooltip("{0} = shards collected this run (0 or 1).")]
         public string keyItemValueFormat = "{0}/1";
         public string nextLabel = "Next";

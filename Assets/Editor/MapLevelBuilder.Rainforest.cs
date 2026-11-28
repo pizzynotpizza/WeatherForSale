@@ -9,10 +9,16 @@ namespace WeatherForSale.EditorTools
     /// <summary>
     /// Rainforest layouts (story 004): level 1 "Mushroom Path" (ทางเห็ดเด้ง) and level 2 "Logs and Vines"
     /// (ท่อนไม้กับเถาวัลย์). The course runs along +Z from the start pad at the origin.
-    /// Reach used to place everything (moveSpeed 6, jumpSpeed 9, gravity 25): about 4 m flat gap or
-    /// 3.9 m with a 0.5 m rise; main-path gaps are at most 3 m with rises of 0.5 m or less except where a
-    /// bounce mushroom is involved (jump apex 15 m/s: 4.5 m, 1.2 s in the air). The hidden-Shard branch
-    /// of each level uses smaller platforms and 3.0 - 3.4 m gaps, so it is harder than the main path.
+    /// Difficulty pass: every section combines two or more mechanics (bounce through a swinging Rainbell,
+    /// bounce onto a collapsing cap, collapsing chains, logs drifting across the lane under a Rainbell,
+    /// three chained vines, a tree climb mixing rotten branches and a Rainbell), the safe pads are small
+    /// and the checkpoints sit right after the hardest part of each third.
+    /// Reach used to place everything (moveSpeed 6, jumpSpeed 9, gravity 25, 0.72 s in the air): about
+    /// 4.3 m flat, 3.9 m with a 0.5 m rise, 3.6 m with a 0.85 m rise, 5 m with a 1.2 m drop. Main-path
+    /// gaps (collider edge to edge) are 1.9 - 2.9 m, rises at most 0.85 m except off a bounce mushroom
+    /// (launch 15 m/s: apex 4.5 m, 1.2 s in the air, about 5.7 m forward onto a +3 m cap). The
+    /// hidden-Shard branch of each level uses smaller platforms and 2.6 - 3.3 m gaps with rises, so it is
+    /// harder than the main path.
     /// </summary>
     internal static partial class MapLevelBuilder
     {
@@ -26,14 +32,76 @@ namespace WeatherForSale.EditorTools
         /// <summary>Rainbell plants growing along the banks (visual only), metres wide.</summary>
         private const float RainbellPlantWidth = 1.8f;
 
-        // Level 2 tree climb: six branches on separate trees, zigzagging left/right.
-        private const int ClimbBranches = 5;
-        private const float ClimbRise = 0.9f;       // each branch this much higher than the last
-        private const float ClimbStartZ = 53.0f;    // first branch (Checkpoint_2 ends at z 51.5)
-        private const float ClimbSpacingZ = 2.2f;
+        // ---- swinging Rainbells (all swing left-right across the course)
+        /// <summary>Stem length from the pivot to the bell, metres.</summary>
+        private const float BellStemLength = 3.5f;
+        /// <summary>How far the hit sphere's centre sits below the bell's origin (the Meshy head hangs low), metres.</summary>
+        private const float BellHitDrop = 0.1f;
+        /// <summary>Hit-sphere centre above the surface the bell guards: covers 0.18 - 1.42 m, Sam is 1.4 m tall.</summary>
+        private const float BellHitHeightOverFloor = 0.8f;
+        /// <summary>Level 1 swing, degrees: 45 sweeps the bell 2.5 m to each side.</summary>
+        private const float BellSwingDegrees = 45f;
+        /// <summary>Level 1, the bell across the flight off the first bounce mushroom (passes the middle every 1.1 s).</summary>
+        private const float BounceBellPeriod = 2.2f;
+        /// <summary>Level 1, the bell over the small cap Mushroom_C2 (passes the middle every 1.2 s).</summary>
+        private const float CapBellPeriod = 2.4f;
+        /// <summary>Level 1, the bell across the last bounce onto the finish (passes the middle every 1.0 s).</summary>
+        private const float FinishBellPeriod = 2.0f;
+        /// <summary>Level 2 swing, degrees: 40 sweeps the bell 2.25 m to each side.</summary>
+        private const float LogsLevelBellSwingDegrees = 40f;
+        /// <summary>Level 2, the bell over the third drifting log (passes the middle every 1.5 s).</summary>
+        private const float LogBellPeriod = 3.0f;
+        /// <summary>Level 2, the bell across the climb between branch 4 and 5 (passes the middle every 1.2 s).</summary>
+        private const float ClimbBellPeriod = 2.4f;
+        /// <summary>Level 2, the climb bell's hit centre above the branch before it (it blocks the jump arc).</summary>
+        private const float ClimbBellHeightOverBranch = 1.2f;
+
+        // ---- level 1 drifting caps (PlatformMover, side to side)
+        /// <summary>Peak sideways offset of the drifting cap Mushroom_B4, metres.</summary>
+        private const float MushroomDriftTravel = 2.4f;
+        /// <summary>Seconds for one side-to-side cycle of Mushroom_B4 (peak speed 3.8 m/s).</summary>
+        private const float MushroomDriftPeriod = 4.0f;
+        /// <summary>Peak forward/back offset of the drifting cap on the secret branch, metres.</summary>
+        private const float SecretMushroomDriftTravel = 1.4f;
+        /// <summary>Seconds for one cycle of the secret drifting cap.</summary>
+        private const float SecretMushroomDriftPeriod = 3.2f;
+
+        // ---- level 2 chained vines: three vines, no landing between them. Neighbours swing in opposite
+        // phase (half a period apart), so one foothold reaches the far end of its swing as the next one
+        // reaches its near end, 2.4 m apart (centre to centre): jump in the last ~0.6 s before that moment.
+        private const float VineLength = 6.0f;          // rope length: the swing reaches 3.18 m each way
+        private const float VineSwingDegrees = 32f;
+        private const float VinePeriod = 3.6f;          // seconds for one swing there and back (same for all three)
+        private const float VineExtremeTopY = 0.7f;     // foothold top at both ends of the swing (0.9 m lower in the middle)
+
+        // ---- level 2 tree climb: seven branches on separate trees, zigzagging left/right
+        private const int ClimbBranches = 7;
+        private const float ClimbRise = 0.85f;      // each branch this much higher than the last
+        private const float ClimbStartZ = 60.4f;    // first branch (Checkpoint_2 ends at z 58.4)
+        private const float ClimbSpacingZ = 2.3f;
+        private const int ClimbBellBranch = 3;      // the Rainbell swings between this branch (index) and the next
+        private const float ClimbBellSpacingZ = 3.0f; // wider gap there so a player waiting on the branch is clear of the bell
+        private const float ClimbBranchWidth = 0.9f; // collider 0.72 m deep: a precision landing
         private const float ClimbBranchX = 1.3f;    // branch centre, left or right of the course line
         private const float ClimbTrunkX = 3.3f;     // trunk, outside the course
         private const float ClimbCrownWidth = 3.4f; // leafy crown on top of each climbing tree
+
+        /// <summary>Which climb branches are rotten (break after RottenBranchStandSeconds of standing).</summary>
+        private static readonly bool[] ClimbRotten = { false, true, true, false, true, true, false };
+
+        /// <summary>
+        /// Level 2 opening log lane: logs lying across the river that drift side to side (PlatformMover)
+        /// at different speeds and directions while they roll (RollingSurface pushes the rider along Z).
+        /// driftX / driftPeriod give the side-to-side swing (peak speeds 2.2 - 4.2 m/s); roll* the surface push.
+        /// </summary>
+        private static readonly (float z, float driftX, float driftPeriod, float driftPhase, float rollPeak, float rollPeriod, float rollPhase)[] RainforestLogLane =
+        {
+            (5.6f, 2.0f, 4.4f, 0.0f, 2.0f, 3.4f, 0.0f),
+            (8.9f, 2.4f, 3.6f, 1.8f, 2.4f, 3.0f, 1.5f),
+            (12.2f, 1.8f, 5.2f, 0.7f, 2.6f, 2.8f, 0.4f), // the Rainbell swings over this one
+            (15.5f, 2.6f, 4.0f, 2.0f, 2.2f, 3.6f, 2.2f),
+            (18.8f, 2.2f, 3.2f, 0.4f, 2.8f, 2.6f, 1.0f),
+        };
 
         // Grass banks along both sides of the river, under the scenery trees and cliffs (visual only).
         private const float BankInnerX = 16.5f;   // inner edge, clear of the secret branches (down to x = -16)
@@ -61,6 +129,9 @@ namespace WeatherForSale.EditorTools
 
         /// <summary>Seconds from the first step to a collapsing mushroom giving way (story: 1 second).</summary>
         private const float MushroomCollapseSeconds = 0.6f;
+
+        /// <summary>Seconds a collapsed mushroom stays gone before rising back (short, so a retry of a chain is not a long wait).</summary>
+        private const float MushroomGoneSeconds = 2.0f;
 
         /// <summary>Seconds a rotten branch can be stood on (continuously) before it breaks.</summary>
         private const float RottenBranchStandSeconds = 0.6f;
@@ -116,36 +187,54 @@ namespace WeatherForSale.EditorTools
             PrepareRainforest(c);
             StartIsland(c, 6f, 6f, PillarBottomY);
 
-            // A: stepping caps, then two that collapse 1 s after the first step.
-            Mushroom(c, m, "Mushroom_A1", 0f, 0.0f, 6.5f, 3.4f, 3.4f, MushroomKind.Static);
-            Mushroom(c, m, "Mushroom_A2", 1.4f, 0.3f, 10.6f, 3.2f, 3.2f, MushroomKind.Static);
-            Mushroom(c, m, "Mushroom_A3_Collapse", -0.8f, 0.6f, 14.6f, 3.0f, 3.0f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_A4_Collapse", 0.8f, 0.9f, 18.4f, 3.0f, 3.0f, MushroomKind.Collapse);
-            AddCheckpoint(c, "Checkpoint_1", 0f, 1.0f, 23.5f, 5f, m.Pillar, PillarBottomY);
+            // A: one still cap, then a chain of four collapsing caps zigzagging upward (0.6 s each: keep
+            // hopping), a bounce mushroom at the end of the chain that throws the player up onto a high
+            // cap that also collapses, and the checkpoint just past it.
+            Mushroom(c, m, "Mushroom_A1", 0f, 0.2f, 6.6f, 2.4f, 2.4f, MushroomKind.Static);
+            for (int i = 0; i < 4; i++)
+            {
+                float side = i % 2 == 0 ? 1f : -1f;
+                Mushroom(c, m, "Mushroom_A" + (i + 2) + "_Collapse", side * 1.2f, 0.45f + 0.25f * i, 10.6f + 4.0f * i,
+                    2.4f, 2.4f, MushroomKind.Collapse);
+            }
+            Mushroom(c, m, "Mushroom_A6_Bounce", 0f, 1.2f, 26.8f, 2.8f, 2.8f, MushroomKind.Bounce);
+            Mushroom(c, m, "Mushroom_A7_HighCollapse", 0f, 4.4f, 32.2f, 2.8f, 2.8f, MushroomKind.Collapse);
+            AddCheckpoint(c, "Checkpoint_1", 0f, 4.6f, 37.8f, 4f, m.Pillar, PillarBottomY);
 
-            // B: a bounce mushroom launches the player up onto a high cap and the second checkpoint.
-            Mushroom(c, m, "Mushroom_B1_Bounce", 0f, 1.0f, 30.0f, 3.4f, 3.4f, MushroomKind.Bounce);
-            Mushroom(c, m, "Mushroom_B2_HighCap", 0f, 4.5f, 35.5f, 4.4f, 4.4f, MushroomKind.Static);
-            AddCheckpoint(c, "Checkpoint_2", 0f, 4.5f, 41.0f, 5f, m.Pillar, PillarBottomY);
+            // B: drop onto a bounce mushroom whose flight passes through a swinging Rainbell (bounce in place
+            // to time it, then go just after the bell crosses the middle), land on a high collapsing cap, a
+            // small still cap, then a cap drifting side to side. Checkpoint after the drifting cap.
+            Mushroom(c, m, "Mushroom_B1_Bounce", 0f, 3.4f, 43.6f, 2.6f, 2.6f, MushroomKind.Bounce);
+            RainbellAt(c, m, "Rainbell_B", new Vector3(0f, 8.2f, 46.3f), BellSwingDegrees, BounceBellPeriod, 0f, 4.7f);
+            Mushroom(c, m, "Mushroom_B2_HighCollapse", 0f, 6.2f, 49.2f, 2.6f, 2.6f, MushroomKind.Collapse);
+            Mushroom(c, m, "Mushroom_B3", -1.4f, 6.4f, 53.0f, 2.0f, 2.0f, MushroomKind.Static);
+            DriftingMushroom(Mushroom(c, m, "Mushroom_B4_Drifting", 0f, 6.6f, 57.4f, 2.4f, 2.4f, MushroomKind.Static),
+                new Vector3(MushroomDriftTravel, 0f, 0f), MushroomDriftPeriod, 0f);
+            AddCheckpoint(c, "Checkpoint_2", 0f, 6.8f, 62.3f, 4f, m.Pillar, PillarBottomY);
 
-            // C: two more collapsing caps, then a long shelf mushroom under two swinging Rainbell flowers.
-            Mushroom(c, m, "Mushroom_C1_Collapse", 0.8f, 4.8f, 47.0f, 3.0f, 3.0f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_C2_Collapse", -0.8f, 5.1f, 50.8f, 3.0f, 3.0f, MushroomKind.Collapse);
-            Mushroom(c, m, "Mushroom_Shelf", 0f, 5.2f, 57.8f, 3.4f, 9.0f, MushroomKind.Static);
-            RainbellFlower(c, m, "Rainbell_1", new Vector3(0f, 5.2f + 0.9f + 4f, 56.5f), 4f, 40f, 2.3f, 0f, -4.7f);
-            RainbellFlower(c, m, "Rainbell_2", new Vector3(0f, 5.2f + 0.9f + 4f, 59.5f), 4f, 40f, 2.3f, 1.15f, 4.7f);
+            // C (precision): small caps (1.5 m walkable). A still cap, a still cap under a swinging Rainbell
+            // (land after it passes, leave before it returns), two collapsing caps, a tiny still cap to stop
+            // on, then a bounce mushroom whose flight onto the finish crosses a fast Rainbell.
+            Mushroom(c, m, "Mushroom_C1", 1.6f, 6.8f, 67.0f, 2.0f, 2.0f, MushroomKind.Static);
+            Mushroom(c, m, "Mushroom_C2_UnderBell", -0.4f, 7.1f, 70.7f, 2.0f, 2.0f, MushroomKind.Static);
+            RainbellAt(c, m, "Rainbell_C2", new Vector3(-0.4f, 7.1f + BellHitHeightOverFloor, 70.7f), BellSwingDegrees, CapBellPeriod, 0.6f, -4.7f);
+            Mushroom(c, m, "Mushroom_C3_Collapse", 1.4f, 7.3f, 74.4f, 2.0f, 2.0f, MushroomKind.Collapse);
+            Mushroom(c, m, "Mushroom_C4_Collapse", -0.6f, 7.5f, 78.1f, 2.0f, 2.0f, MushroomKind.Collapse);
+            Mushroom(c, m, "Mushroom_C5_Tiny", 0.8f, 7.7f, 81.8f, 1.8f, 1.8f, MushroomKind.Static);
+            Mushroom(c, m, "Mushroom_C6_Bounce", 0f, 7.2f, 85.6f, 2.4f, 2.4f, MushroomKind.Bounce);
+            RainbellAt(c, m, "Rainbell_Finish", new Vector3(0f, 11.8f, 88.2f), BellSwingDegrees, FinishBellPeriod, 0.3f, 4.7f);
+            AddFinish(c, 0f, 10.2f, 93.0f, 6f, 7f, m.Pillar, PillarBottomY);
 
-            // D: last bounce mushroom throws the player onto the finish pad.
-            Mushroom(c, m, "Mushroom_B3_Bounce", 0f, 5.2f, 65.0f, 3.4f, 3.4f, MushroomKind.Bounce);
-            AddFinish(c, 0f, 7.5f, 72.5f, 6f, 7f, m.Pillar, PillarBottomY);
+            // Secret branch off checkpoint 1 toward -X: 1.2 m walkable caps, 2.4 - 3.3 m gaps, each a little
+            // higher: still, collapsing, drifting along Z (wait for it to come forward), still with the Shard.
+            Mushroom(c, m, "Secret_1", -5.8f, 4.9f, 38.4f, 1.6f, 1.6f, MushroomKind.Static);
+            Mushroom(c, m, "Secret_2_Collapse", -9.6f, 5.3f, 36.4f, 1.6f, 1.6f, MushroomKind.Collapse);
+            DriftingMushroom(Mushroom(c, m, "Secret_3_Drifting", -13.2f, 5.6f, 38.4f, 1.6f, 1.6f, MushroomKind.Static),
+                new Vector3(0f, 0f, SecretMushroomDriftTravel), SecretMushroomDriftPeriod, 0f);
+            Mushroom(c, m, "Secret_4", -13.6f, 6.0f, 42.6f, 1.6f, 1.6f, MushroomKind.Static);
+            AddShard(c, c.MapId, new Vector3(-13.6f, 7.1f, 42.6f), m.Shard, 0.4f, 0.8f);
 
-            // Secret branch off checkpoint 1: small caps, 3.0 - 3.4 m gaps, one collapses. Hidden Shard at the end.
-            Mushroom(c, m, "Secret_1", -6.3f, 1.5f, 24.0f, 1.9f, 1.9f, MushroomKind.Static);
-            Mushroom(c, m, "Secret_2_Collapse", -10.6f, 2.0f, 26.0f, 1.8f, 1.8f, MushroomKind.Collapse);
-            Mushroom(c, m, "Secret_3", -14.8f, 2.6f, 24.0f, 1.8f, 1.8f, MushroomKind.Static);
-            AddShard(c, c.MapId, new Vector3(-14.8f, 3.7f, 24.0f), m.Shard, 0.4f, 0.8f);
-
-            RainforestScenery(c, m, -12f, 90f, 1001);
+            RainforestScenery(c, m, -12f, 105f, 1001);
         }
 
         // ------------------------------------------------------------------ level 2: Logs and Vines
@@ -156,55 +245,100 @@ namespace WeatherForSale.EditorTools
             PrepareRainforest(c);
             StartIsland(c, 6f, 6f, PillarBottomY);
 
-            // A: four floating logs that roll back and forth and bob; neighbours roll opposite ways.
-            for (int i = 0; i < 4; i++)
+            // A: five logs lying across the river drift side to side, each at its own speed and direction,
+            // while they roll (the surface pushes along Z). A Rainbell swings over the third one.
+            for (int i = 0; i < RainforestLogLane.Length; i++)
             {
-                RollingLog(c, m, "Log_" + (i + 1), 0f, 0f, 5.6f + 3.3f * i, 3.4f, 1.8f,
-                    peakSpeed: 3.2f, period: 3.4f, phase: (i % 2) * 2f, bobAmplitude: 0.08f, bobPeriod: 2.6f, bobPhase: i * 0.7f);
+                var log = RainforestLogLane[i];
+                RollingLog(c, m, "Log_" + (i + 1), 0f, 0f, log.z, 3.4f, 1.8f,
+                    peakSpeed: log.rollPeak, period: log.rollPeriod, phase: log.rollPhase,
+                    travel: new Vector3(log.driftX, 0f, 0f), travelPeriod: log.driftPeriod, travelPhase: log.driftPhase);
             }
-            AddCheckpoint(c, "Checkpoint_1", 0f, 0.4f, 20.0f, 5f, m.Pillar, PillarBottomY);
+            RainbellAt(c, m, "Rainbell_LogLane", new Vector3(0f, BellHitHeightOverFloor, RainforestLogLane[2].z), LogsLevelBellSwingDegrees, LogBellPeriod, 0f, 4.7f);
+            AddCheckpoint(c, "Checkpoint_1", 0f, 0.4f, 23.6f, 4f, m.Pillar, PillarBottomY);
 
-            // B: two swinging vines. The footholds are lowest in the middle of the swing and rise to
-            // platform height (+0.3 m) at both ends, where the swing is slowest: that is where to hop on or off.
-            SwingingVine(c, m, "Vine_1", 0f, 27.0f, 0.7f, 6.0f, 32f, 3.6f, 0f, -4.7f);
-            Slab(c, "Landing_1", 0f, 0.4f, 34.5f, 4f, 4f, c.In.PlatformMaterial, m.Pillar, PillarBottomY);
-            SwingingVine(c, m, "Vine_2", 0f, 41.5f, 0.7f, 6.5f, 34f, 3.0f, 1.0f, 4.7f);
-            AddCheckpoint(c, "Checkpoint_2", 0f, 0.4f, 49.0f, 5f, m.Pillar, PillarBottomY);
+            // B: three vines chained with no landing between (neighbours in opposite phase). Board vine 1 at
+            // its near end, ride to the far end, jump to vine 2 as it reaches its near end, and so on.
+            SwingingVine(c, m, "Vine_1", 0f, 31.2f, VineExtremeTopY, VineLength, VineSwingDegrees, VinePeriod, 0f, -4.7f);
+            SwingingVine(c, m, "Vine_2", 0f, 39.95f, VineExtremeTopY, VineLength, VineSwingDegrees, VinePeriod, VinePeriod * 0.5f, 4.7f);
+            SwingingVine(c, m, "Vine_3", 0f, 48.7f, VineExtremeTopY, VineLength, VineSwingDegrees, VinePeriod, 0f, -4.7f);
+            const float checkpoint2Top = 0.6f;
+            AddCheckpoint(c, "Checkpoint_2", 0f, checkpoint2Top, 56.4f, 4f, m.Pillar, PillarBottomY);
 
-            // C: jump-climb up through the trees: six separate trees left and right of the river, each with
-            // one branch reaching in over the course. Hop from branch to branch, zigzagging, 0.75 m higher each time.
+            // C: jump-climb through seven separate trees, zigzagging, 0.85 m higher each time; four of the
+            // narrow branches are rotten, and a Rainbell swings across the gap after the 4th branch.
+            float z = ClimbStartZ, topY = checkpoint2Top;
+            float bellZ = 0f, bellBranchTop = 0f;
             for (int k = 0; k < ClimbBranches; k++)
             {
+                if (k > 0) z += k == ClimbBellBranch + 1 ? ClimbBellSpacingZ : ClimbSpacingZ;
+                topY = checkpoint2Top + ClimbRise * (k + 1);
                 float side = k % 2 == 0 ? 1f : -1f;
-                float topY = 0.4f + ClimbRise * (k + 1);
-                float z = ClimbStartZ + ClimbSpacingZ * k;
+                bool rotten = ClimbRotten[k];
                 ClimbTree(c, m, "ClimbTree_" + (k + 1), side * ClimbTrunkX, z, topY + 2.4f);
-                Branch(c, "Climb_" + (k + 1), new Vector3(side * ClimbBranchX, topY, z), side > 0f ? Vector3.left : Vector3.right,
-                    3.0f, 1.0f, 0.7f, m.Bark);
+                GameObject branch = Branch(c, "Climb_" + (k + 1) + (rotten ? "_Rotten" : ""), new Vector3(side * ClimbBranchX, topY, z),
+                    side > 0f ? Vector3.left : Vector3.right, 3.0f, ClimbBranchWidth, 0.7f, rotten ? m.Rotten : m.Bark);
+                if (rotten) MakeRotten(branch, m, topY);
+                if (k == ClimbBellBranch)
+                {
+                    bellZ = z + ClimbBellSpacingZ * 0.5f;
+                    bellBranchTop = topY;
+                }
             }
+            RainbellAt(c, m, "Rainbell_Climb", new Vector3(0f, bellBranchTop + ClimbBellHeightOverBranch, bellZ),
+                LogsLevelBellSwingDegrees, ClimbBellPeriod, 0f, 5.2f);
 
-            // D: rotten branches (break after ~1 s of standing), then two fast rolling logs.
+            // D: down again on three rotten branches (1.2 m drops, keep going), onto a log drifting across
+            // the river and a fast rolling log, then the deck.
             for (int i = 0; i < 3; i++)
             {
-                GameObject branch = Branch(c, "RottenBranch_" + (i + 1), new Vector3(0f, 4.9f, 63.6f + 3.7f * i), Vector3.forward, 2.8f, 1.0f, 0.75f, m.Rotten);
-                MakeRotten(branch, m, 4.9f);
+                float side = i % 2 == 0 ? -1f : 1f;
+                float descentTop = topY - 1.2f * (i + 1);
+                float descentZ = 77.8f + 2.9f * i;
+                ClimbTree(c, m, "DescentTree_" + (i + 1), side * ClimbTrunkX, descentZ, descentTop + 2.4f);
+                GameObject branch = Branch(c, "Descent_" + (i + 1) + "_Rotten", new Vector3(side * ClimbBranchX, descentTop, descentZ),
+                    side > 0f ? Vector3.left : Vector3.right, 3.2f, 1.2f, 0.7f, m.Rotten);
+                MakeRotten(branch, m, descentTop);
             }
-            RollingLog(c, m, "Log_5", 0f, 4.9f, 74.8f, 3.4f, 1.8f, peakSpeed: 3.8f, period: 2.8f, phase: 0f, bobAmplitude: 0.08f, bobPeriod: 2.6f, bobPhase: 0.3f);
-            RollingLog(c, m, "Log_6", 0f, 4.9f, 78.0f, 3.4f, 1.8f, peakSpeed: 3.8f, period: 2.8f, phase: 1.6f, bobAmplitude: 0.08f, bobPeriod: 2.6f, bobPhase: 1.1f);
+            RollingLog(c, m, "Log_6_Drifting", 0f, 0.4f, 87.3f, 3.4f, 1.8f, peakSpeed: 2.4f, period: 3.0f, phase: 0f,
+                travel: new Vector3(2.2f, 0f, 0f), travelPeriod: 4.0f, travelPhase: 0f);
+            RollingLog(c, m, "Log_7_Fast", 0f, 0.4f, 90.6f, 3.4f, 1.8f, peakSpeed: 3.6f, period: 2.6f, phase: 1.3f,
+                travel: new Vector3(0f, 0.08f, 0f), travelPeriod: 2.6f, travelPhase: 1.1f);
 
-            // Landing deck and finish pad: nothing else within 6 m (the suction stage stands Sam on the pad facing -Z).
-            Slab(c, "Deck", 0f, 4.9f, 84.0f, 6f, 6f, c.In.PlatformMaterial, m.Pillar, PillarBottomY);
-            AddFinish(c, 0f, 4.9f, 90.0f, 6f, 6f, m.Pillar, PillarBottomY, weatherDais: true);
+            // Deck and the 9 x 9 finish ground with the dais: nothing else within 9 m (the suction happens there).
+            Slab(c, "Deck", 0f, 0.6f, 95.5f, 6f, 5f, c.In.PlatformMaterial, m.Pillar, PillarBottomY);
+            AddFinish(c, 0f, 0.6f, 102.5f, 9f, 9f, m.Pillar, PillarBottomY, weatherDais: true);
 
-            // Secret branch off the climb (the 4th branch, on the left tree): three small rotten stubs toward -X: three small rotten stubs, narrow and
-            // 3.0 - 3.4 m apart, rising 0.5 m each. Hidden Shard at the end.
-            const float stubLength = 1.8f, stubWidth = 1.1f;
-            MakeRotten(Branch(c, "Secret_1", new Vector3(-5.6f, 3.4f, 58.4f), Vector3.right, stubLength, stubWidth, 0.75f, m.Rotten), m, 3.4f);
-            MakeRotten(Branch(c, "Secret_2", new Vector3(-9.3f, 3.9f, 56.0f), Vector3.right, stubLength, stubWidth, 0.75f, m.Rotten), m, 3.9f);
-            MakeRotten(Branch(c, "Secret_3", new Vector3(-13.0f, 4.5f, 58.4f), Vector3.right, stubLength, stubWidth, 0.75f, m.Rotten), m, 4.5f);
-            AddShard(c, c.MapId, new Vector3(-13.0f, 5.6f, 58.4f), m.Shard, 0.4f, 0.8f);
+            // Secret branch off the 4th climb branch (left tree, the still one before the bell) toward -X:
+            // three narrow rotten stubs, 2.8 - 3.2 m apart, 0.3 - 0.4 m higher each. Hidden Shard at the end.
+            const float stubLength = 1.8f, stubWidth = 1.0f;
+            (float x, float top, float z)[] stubs = { (-5.8f, 4.3f, 64.9f), (-9.9f, 4.7f, 62.5f), (-13.9f, 5.1f, 64.9f) };
+            for (int i = 0; i < stubs.Length; i++)
+            {
+                var s = stubs[i];
+                RainforestStubTrunk(c, m, "Secret_" + (i + 1) + "_Trunk", s.x - stubLength * 0.5f - 0.3f, s.z, s.top);
+                MakeRotten(Branch(c, "Secret_" + (i + 1), new Vector3(s.x, s.top, s.z), Vector3.right, stubLength, stubWidth, 0.75f, m.Rotten), m, s.top);
+            }
+            AddShard(c, c.MapId, new Vector3(-13.9f, 6.2f, 64.9f), m.Shard, 0.4f, 0.8f);
 
-            RainforestScenery(c, m, -12f, 100f, 2002);
+            RainforestScenery(c, m, -12f, 112f, 2002);
+        }
+
+        /// <summary>Makes a still mushroom drift back and forth (PlatformMover) and carry the player (RideableSurface).</summary>
+        private static void DriftingMushroom(GameObject mushroom, Vector3 travel, float period, float phase)
+        {
+            if (!mushroom.TryGetComponent(out RideableSurface _)) mushroom.AddComponent<RideableSurface>();
+            var mover = mushroom.AddComponent<PlatformMover>();
+            SetFields(mover, ("travel", travel), ("periodSeconds", period), ("phaseSeconds", phase));
+        }
+
+        /// <summary>A bare bark trunk rising out of the river to just above a stub branch (visual only, no crown, so the camera stays clear).</summary>
+        private static void RainforestStubTrunk(Context c, RainforestMats m, string name, float x, float z, float stubTop)
+        {
+            float bottom = RiverTopY - 1f;
+            float height = stubTop + 0.6f - bottom;
+            Prim(PrimitiveType.Cylinder, name, c.Scenery, new Vector3(x, bottom + height * 0.5f, z),
+                new Vector3(0.6f, height * 0.5f, 0.6f), m.Bark);
         }
 
         // ------------------------------------------------------------------ obstacle builders
@@ -325,6 +459,7 @@ namespace WeatherForSale.EditorTools
                     ("requireContinuousStand", false),
                     ("visual", visual.transform),
                     ("fallDistance", topY - RiverTopY + 1.5f),
+                    ("goneSeconds", MushroomGoneSeconds),
                     ("returnSeconds", 1.2f));
             }
             return root;
@@ -389,9 +524,14 @@ namespace WeatherForSale.EditorTools
             return mesh;
         }
 
+        /// <summary>
+        /// A log lying along X whose surface rolls (pushes the rider along Z, see RollingSurface) and which
+        /// moves as a whole by <paramref name="travel"/> (PlatformMover sine): a small Y value is a bob, an X
+        /// value makes it drift side to side across the course. Zero travel = no mover.
+        /// </summary>
         private static GameObject RollingLog(Context c, RainforestMats m, string name, float x, float topY, float z,
             float length, float diameter, float peakSpeed, float period, float phase,
-            float bobAmplitude, float bobPeriod, float bobPhase)
+            Vector3 travel, float travelPeriod, float travelPhase)
         {
             var root = new GameObject(name);
             root.transform.SetParent(c.Course, false);
@@ -445,10 +585,10 @@ namespace WeatherForSale.EditorTools
                 ("rollAxis", Vector3.right),
                 ("rollRadius", radius));
 
-            if (bobAmplitude > 0f)
+            if (travel.sqrMagnitude > 0f)
             {
                 var mover = root.AddComponent<PlatformMover>();
-                SetFields(mover, ("travel", new Vector3(0f, bobAmplitude, 0f)), ("periodSeconds", bobPeriod), ("phaseSeconds", bobPhase));
+                SetFields(mover, ("travel", travel), ("periodSeconds", travelPeriod), ("phaseSeconds", travelPhase));
             }
             return root;
         }
@@ -514,7 +654,7 @@ namespace WeatherForSale.EditorTools
             if (PlacePrefab(RainbellHeadPrefabPath, bell.transform, bell.transform.position + Vector3.up * 0.55f, RainbellHeadWidth,
                     hangFromTop: true) != null)
             {
-                hit.center = new Vector3(0f, -0.1f, 0f);
+                hit.center = new Vector3(0f, -BellHitDrop, 0f);
             }
             else
             {
@@ -531,6 +671,17 @@ namespace WeatherForSale.EditorTools
                 ("phaseSeconds", phase));
 
             HangFrame(c, m, name, pivotPosition, trunkOffsetX);
+        }
+
+        /// <summary>
+        /// A swinging Rainbell (BellStemLength stem, swinging left-right) placed by where its hit sphere is
+        /// at rest: <paramref name="hitCentre"/>. The pivot goes above it; the trunk at <paramref name="trunkOffsetX"/>.
+        /// </summary>
+        private static void RainbellAt(Context c, RainforestMats m, string name, Vector3 hitCentre, float amplitudeDegrees,
+            float period, float phase, float trunkOffsetX)
+        {
+            Vector3 pivot = hitCentre + Vector3.up * (BellHitDrop + BellStemLength);
+            RainbellFlower(c, m, name, pivot, BellStemLength, amplitudeDegrees, period, phase, trunkOffsetX);
         }
 
         /// <summary>A trunk beside the course with a limb reaching over it, so a pivot hangs from something. Visual only.</summary>

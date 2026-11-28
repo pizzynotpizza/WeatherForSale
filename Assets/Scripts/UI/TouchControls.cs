@@ -106,6 +106,7 @@ namespace WeatherForSale.UI
             {
                 jumpPointer = id;
                 player.RequestJump();
+                player.SetVirtualJumpHeld(true); // held: the glide climbs
                 return;
             }
 
@@ -187,6 +188,7 @@ namespace WeatherForSale.UI
             else if (id == jumpPointer)
             {
                 jumpPointer = NoPointer;
+                player.SetVirtualJumpHeld(false);
             }
             else if (id == lookPointer)
             {
@@ -207,7 +209,11 @@ namespace WeatherForSale.UI
             jumpPointer = NoPointer;
             lookPointer = NoPointer;
             pinchPointer = NoPointer;
-            if (player != null) player.SetVirtualMove(Vector2.zero);
+            if (player != null)
+            {
+                player.SetVirtualMove(Vector2.zero);
+                player.SetVirtualJumpHeld(false);
+            }
             ResetStickVisual();
         }
 

@@ -37,8 +37,8 @@ namespace WeatherForSale.EditorTools
         private const string KayKitFolder = "Assets/KayKit_Forest_Nature_Pack_1.0_EXTRA/Assets/fbx(unity)/Color1/";
         private const string MapBoardSource = "design/ref/props/MapBoard/MapBoard_Front.png";
         private const string BottleSource = "design/ref/All Bottle.png";
-        // Each map loads its own starter obby scene (ObbyTestSceneBuilder.MapThemes): Obby_<Name>_1.
-        private static string MapSceneName(string displayName) => "Obby_" + displayName + "_1";
+        // Each map loads its one merged obby scene (ObbyTestSceneBuilder.MapThemes): Obby_<Name>.
+        private static string MapSceneName(string displayName) => "Obby_" + displayName;
 
         // Camera: the player's eye behind the counter (Sam is a child, ~1.4 m tall).
         private const float EyeHeight = 1.25f;

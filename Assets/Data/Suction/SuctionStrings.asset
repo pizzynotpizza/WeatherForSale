@@ -22,6 +22,6 @@ MonoBehaviour:
   stageCompleteTitle: Stage Complete!
   timeLabel: Time
   timeValueFormat: '{0:00}:{1:00}'
-  keyItemLabel: Key Item (Shard)
+  keyItemLabel: Shard
   keyItemValueFormat: '{0}/1'
   nextLabel: Next

@@ -13,7 +13,7 @@ namespace WeatherForSale.Shop
         [Tooltip("English name on the map button and the Loading screen.")]
         public string displayName = "";
 
-        [Tooltip("First obby scene of this map, e.g. \"Obby_Rainforest_1\" (starter level; story 004 builds the full levels).")]
+        [Tooltip("Obby scene of this map, e.g. \"Obby_Rainforest\" (both levels merged into one course, story 004).")]
         public string sceneName = "";
 
         [Tooltip("2D bottle art animated on the Loading screen.")]

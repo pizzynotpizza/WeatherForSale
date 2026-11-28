@@ -28,7 +28,7 @@ namespace WeatherForSale.Suction
         [Tooltip("Colour of the suction streaks flowing into the bottle.")]
         public Color streakColor = new Color(0.75f, 1.00f, 0.95f, 0.85f);
 
-        [Tooltip("Total run time (both obby levels + suction), seconds, at or under which the player earns 3 stars.")]
+        [Tooltip("Total run time (the whole merged obby course + suction), seconds, at or under which the player earns 3 stars.")]
         [Min(0f)] public float threeStarSeconds = 120f;
 
         [Tooltip("At or under this many seconds: 2 stars.")]

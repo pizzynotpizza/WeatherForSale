@@ -36,7 +36,7 @@ namespace WeatherForSale.Shop
         /// <summary>Falls/deaths in this run, across every attempt of every level.</summary>
         public int RunDeaths => runDeaths;
 
-        /// <summary>True once this run's Key Item (purple Shard) was picked up. Placed in story 004.</summary>
+        /// <summary>True once this run's purple Shard was picked up. Placed in story 004.</summary>
         public bool RunShardCollected => runShardCollected;
 
         /// <summary>True while a map has been chosen and the bottle is not yet delivered.</summary>
@@ -114,7 +114,7 @@ namespace WeatherForSale.Shop
             if (deaths > 0) runDeaths += deaths;
         }
 
-        /// <summary>Records that this run's Key Item (Shard) was collected (story 004 calls this).</summary>
+        /// <summary>Records that this run's Shard was collected (GameLoopController calls this).</summary>
         public void MarkShardCollected()
         {
             runShardCollected = true;

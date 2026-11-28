@@ -14,7 +14,7 @@ namespace WeatherForSale.UI
         public readonly int Stars;
         /// <summary>Total run time in seconds.</summary>
         public readonly float TotalSeconds;
-        /// <summary>True when this run's Key Item (Shard) was collected.</summary>
+        /// <summary>True when this run's Shard was collected.</summary>
         public readonly bool ShardCollected;
 
         /// <summary>Creates a result; stars are clamped to 0-3.</summary>
@@ -27,7 +27,7 @@ namespace WeatherForSale.UI
     }
 
     /// <summary>
-    /// Complete screen after Weather Collected: 0-3 stars, total time (mm:ss), Key Item (Shard) 0/1
+    /// Complete screen after Weather Collected: 0-3 stars, total time (mm:ss), Shard 0/1
     /// and a Next button. Display only; it raises <see cref="NextRequested"/> and the loop returns
     /// to the shop.
     /// Implements: story-003 criterion 7 (design/game-brief.md "Goal &amp; fail state": Complete screen).

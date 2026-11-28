@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: GameLoopConfig
   m_EditorClassIdentifier: Assembly-CSharp::WeatherForSale.Core.GameLoopConfig
   shopSceneName: Shop
-  levelsPerMap: 2
+  levelsPerMap: 1
   levelSceneFormat: Obby_{0}_{1}
   fallbackMapId: rainforest

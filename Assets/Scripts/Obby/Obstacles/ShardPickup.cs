@@ -5,8 +5,8 @@ namespace WeatherForSale.Obby
 {
     /// <summary>
     /// A hidden purple Shard placed on a secret branch of a level. Touching it marks it collected,
-    /// hides it and raises <see cref="Collected"/>. It counts nothing yet: story 006 (story mode) will
-    /// subscribe to the event and persist the collection.
+    /// hides it and raises <see cref="Collected"/>. GameLoopController records it in the run's ShopSession,
+    /// so the Complete screen shows Shard 1/1; story 006 (story mode) will persist the collection.
     /// Implements: story-004 (one hidden Shard per map, position only).
     /// </summary>
     [RequireComponent(typeof(Collider))]

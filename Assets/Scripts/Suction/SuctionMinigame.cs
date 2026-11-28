@@ -17,7 +17,7 @@ namespace WeatherForSale.Suction
         Collecting,
         /// <summary>Gauge full; the Weather Collected screen is up.</summary>
         Collected,
-        /// <summary>The Complete screen (stars, time, Key Item) is up.</summary>
+        /// <summary>The Complete screen (stars, time, Shard) is up.</summary>
         Complete,
         /// <summary>Next pressed; the shop is loading.</summary>
         Leaving,

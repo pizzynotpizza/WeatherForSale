@@ -25,11 +25,26 @@ namespace WeatherForSale.Obby
         [SerializeField, Range(0f, 1f), Tooltip("A contact counts as ground when its normal points up at least this much (1 = flat floor only).")]
         private float groundNormalMinY = 0.5f;
 
+        [Header("Slippery slopes")]
+        [SerializeField, Min(0f), Tooltip("Multiplier on the downhill pull on a tilted slippery surface. The pull is gravity projected on the slope, times (1 - Traction). 0 = no sliding.")]
+        private float slideGravityScale = 1f;
+
+        [SerializeField, Min(0.1f), Tooltip("Drag on the slide, per second. Standing still, the player slides down at (downhill pull / drag); running uphill nets moveSpeed minus that.")]
+        private float slideDrag = 2f;
+
+        [SerializeField, Range(0f, 45f), Tooltip("Surfaces tilted less than this many degrees count as flat (no slide).")]
+        private float slideMinAngle = 3f;
+
+        // Ground probe for the slope normal: a ray from this high above the feet, reaching this far below them.
+        private const float SlopeProbeHeight = 0.5f;
+        private const float SlopeProbeDepth = 0.4f;
+
         private CharacterController characterController;
         private InputAction moveAction;
         private InputAction jumpAction;
 
         private Vector2 virtualMove;
+        private bool virtualJumpHeld;
         private float horizontalSpeedX;
         private float horizontalSpeedZ;
         private float verticalSpeed;
@@ -48,6 +63,10 @@ namespace WeatherForSale.Obby
         private float pendingLiftAcceleration;
         private float pendingLiftMaxSpeed;
 
+        // Downhill slide on a tilted slippery surface (horizontal, world space). Zero everywhere else, so
+        // normal ground and flat ice behave exactly as without it.
+        private Vector3 slideVelocity;
+
         /// <summary>The <see cref="RideableSurface"/> the player is standing on, or null (static ground or airborne).</summary>
         public RideableSurface CurrentSurface => surface;
 
@@ -57,14 +76,84 @@ namespace WeatherForSale.Obby
         /// <summary>True if the controller was touching the ground at the end of the last update.</summary>
         public bool IsGrounded { get; private set; }
 
-        /// <summary>Current velocity in world space (metres per second), as applied in the last update.</summary>
-        public Vector3 Velocity => new Vector3(horizontalSpeedX, verticalSpeed, horizontalSpeedZ);
+        /// <summary>Current velocity in world space (metres per second), as applied in the last update (own movement plus any slope slide).</summary>
+        public Vector3 Velocity => new Vector3(horizontalSpeedX + slideVelocity.x, verticalSpeed, horizontalSpeedZ + slideVelocity.z);
 
         /// <summary>Top horizontal speed from the config, used to normalise <see cref="Velocity"/> for animation.</summary>
         public float MaxMoveSpeed => config != null ? config.moveSpeed : 1f;
 
         /// <summary>Raised on the frame a jump actually starts (after coyote time / jump buffer checks).</summary>
         public event System.Action Jumped;
+
+        /// <summary>
+        /// True while another component (the glide, <see cref="GlideMode"/>) moves the player: walking, jumping,
+        /// gravity and pushes are paused here. See <see cref="SuspendMovement"/> / <see cref="ResumeMovement"/>.
+        /// </summary>
+        public bool MovementSuspended { get; private set; }
+
+        /// <summary>Raised at the end of every <see cref="TeleportTo"/> (respawn). An external movement mode ends itself here.</summary>
+        public event System.Action Teleported;
+
+        /// <summary>
+        /// The current move input from the same Input System Move action (WASD, arrows, left stick) plus the
+        /// on-screen stick: x = right, y = forward, length 0..1. Zero while <see cref="ControlEnabled"/> is false.
+        /// </summary>
+        public Vector2 MoveInput
+        {
+            get
+            {
+                if (!ControlEnabled || moveAction == null) return Vector2.zero;
+                return Vector2.ClampMagnitude(moveAction.ReadValue<Vector2>() + virtualMove, 1f);
+            }
+        }
+
+        /// <summary>
+        /// True while the jump key / gamepad button or the on-screen jump button is held (the glide climbs on it).
+        /// False while <see cref="ControlEnabled"/> is false.
+        /// </summary>
+        public bool JumpHeld => ControlEnabled && ((jumpAction != null && jumpAction.IsPressed()) || virtualJumpHeld);
+
+        /// <summary>Sets whether the on-screen jump button is held (touch controls call it on press and release).</summary>
+        public void SetVirtualJumpHeld(bool held)
+        {
+            virtualJumpHeld = held;
+        }
+
+        /// <summary>
+        /// Hands movement to another component until <see cref="ResumeMovement"/> (or a respawn): this controller
+        /// stops moving the CharacterController, leaves the surface it rode and counts as airborne.
+        /// </summary>
+        public void SuspendMovement()
+        {
+            if (MovementSuspended) return;
+            MovementSuspended = true;
+            SetSurface(null);
+            IsGrounded = false;
+            slideVelocity = Vector3.zero;
+            externalVelocity = Vector3.zero;
+            timeSinceGrounded = float.MaxValue;
+            jumpBufferRemaining = 0f;
+        }
+
+        /// <summary>Takes movement back after <see cref="SuspendMovement"/>, starting from <paramref name="velocity"/> (world, metres per second).</summary>
+        public void ResumeMovement(Vector3 velocity)
+        {
+            MovementSuspended = false;
+            horizontalSpeedX = velocity.x;
+            horizontalSpeedZ = velocity.z;
+            verticalSpeed = velocity.y;
+            timeSinceGrounded = float.MaxValue; // no coyote jump out of a glide
+            jumpBufferRemaining = 0f;
+        }
+
+        /// <summary>While movement is suspended, sets what <see cref="Velocity"/> reports (animation), metres per second.</summary>
+        public void ReportSuspendedVelocity(Vector3 velocity)
+        {
+            if (!MovementSuspended) return;
+            horizontalSpeedX = velocity.x;
+            horizontalSpeedZ = velocity.z;
+            verticalSpeed = velocity.y;
+        }
 
         /// <summary>
         /// Injects the config and camera when the player is created from code. Optional when the
@@ -138,6 +227,7 @@ namespace WeatherForSale.Obby
         {
             SetSurface(null);
             externalVelocity = Vector3.zero;
+            slideVelocity = Vector3.zero;
 
             // A CharacterController overrides transform changes while enabled.
             characterController.enabled = false;
@@ -149,6 +239,10 @@ namespace WeatherForSale.Obby
             verticalSpeed = 0f;
             jumpBufferRemaining = 0f;
             timeSinceGrounded = float.MaxValue;
+
+            // A respawn always ends an external movement mode (glide).
+            MovementSuspended = false;
+            Teleported?.Invoke();
         }
 
         private void Awake()
@@ -214,6 +308,25 @@ namespace WeatherForSale.Obby
             if (carrier != null) carrierLocalPoint = carrier.InverseTransformPoint(transform.position);
         }
 
+        /// <summary>
+        /// Face normal of the ground straight under the player, when it belongs to the surface they stand on
+        /// and is tilted between <see cref="slideMinAngle"/> and the walkable limit. A ray (not the contact
+        /// normal) so standing on a pad's edge never reads as a slope.
+        /// </summary>
+        private bool TryGetSlopeNormal(out Vector3 normal)
+        {
+            normal = Vector3.up;
+            Vector3 origin = transform.position + Vector3.up * SlopeProbeHeight; // inside the capsule: the ray ignores it
+            if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, SlopeProbeHeight + SlopeProbeDepth,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
+
+            RideableSurface hitSurface = hit.collider == lastGroundCollider ? lastGroundSurface : hit.collider.GetComponentInParent<RideableSurface>();
+            if (hitSurface != surface) return false;
+            if (hit.normal.y < groundNormalMinY || hit.normal.y > Mathf.Cos(slideMinAngle * Mathf.Deg2Rad)) return false;
+            normal = hit.normal;
+            return true;
+        }
+
         private void OnDestroy()
         {
             moveAction?.Dispose();
@@ -223,6 +336,16 @@ namespace WeatherForSale.Obby
         private void Update()
         {
             if (config == null) return;
+
+            if (MovementSuspended)
+            {
+                // Another component (glide) moves the player; drop per-frame pushes so they do not pile up.
+                externalVelocity = Vector3.zero;
+                pendingLiftAcceleration = 0f;
+                pendingLiftMaxSpeed = 0f;
+                jumpBufferRemaining = 0f;
+                return;
+            }
 
             float dt = Time.deltaTime;
 
@@ -248,6 +371,32 @@ namespace WeatherForSale.Obby
                 forward.Normalize();
                 Vector3 right = new Vector3(forward.z, 0f, -forward.x);
                 moveDir = forward * input.y + right * input.x;
+            }
+
+            // Tilted slippery ground (story-004, Glacier 2 snow ramp): gravity projected on the slope plane,
+            // times (1 - Traction), pulls the player downhill; drag caps it at a terminal slide speed. The slide
+            // is kept in the air and handed to the normal movement on any other ground (grip / ice then apply).
+            float slopeStick = 0f;
+            if (IsGrounded && surface != null && surface.Traction < 1f && TryGetSlopeNormal(out Vector3 slopeNormal))
+            {
+                float pull = config.gravity * slideGravityScale * (1f - surface.Traction) * slopeNormal.y;
+                slideVelocity += new Vector3(slopeNormal.x, 0f, slopeNormal.z) * (pull * dt);
+                slideVelocity -= slideVelocity * Mathf.Min(1f, slideDrag * dt);
+
+                // Moving downhill, push down a little harder so the controller stays on the slope.
+                Vector3 downhill = new Vector3(slopeNormal.x, 0f, slopeNormal.z);
+                float tilt = downhill.magnitude;
+                if (tilt > 0.0001f)
+                {
+                    float downhillSpeed = Vector3.Dot(new Vector3(horizontalSpeedX, 0f, horizontalSpeedZ) + slideVelocity, downhill / tilt);
+                    slopeStick = Mathf.Max(0f, downhillSpeed) * (tilt / Mathf.Max(0.05f, slopeNormal.y));
+                }
+            }
+            else if (IsGrounded && slideVelocity.sqrMagnitude > 0f)
+            {
+                horizontalSpeedX += slideVelocity.x;
+                horizontalSpeedZ += slideVelocity.z;
+                slideVelocity = Vector3.zero;
             }
 
             // Horizontal velocity: accelerate toward the target (less control in the air).
@@ -287,7 +436,7 @@ namespace WeatherForSale.Obby
             }
             else if (IsGrounded && verticalSpeed <= 0f)
             {
-                verticalSpeed = -config.groundedStickSpeed;
+                verticalSpeed = -(config.groundedStickSpeed + slopeStick);
             }
             else
             {
@@ -316,7 +465,7 @@ namespace WeatherForSale.Obby
                 if (carry.sqrMagnitude > maxCarryDistance * maxCarryDistance) carry = Vector3.zero;
             }
 
-            Vector3 velocity = new Vector3(horizontalSpeedX, verticalSpeed, horizontalSpeedZ);
+            Vector3 velocity = new Vector3(horizontalSpeedX + slideVelocity.x, verticalSpeed, horizontalSpeedZ + slideVelocity.z);
             Vector3 motion = (velocity + externalVelocity) * dt + carry;
             externalVelocity = Vector3.zero;
             groundSurfaceHit = null;

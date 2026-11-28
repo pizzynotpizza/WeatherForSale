@@ -45,6 +45,23 @@ namespace WeatherForSale.EditorTools
             public float HazardTopY = -6f;
             /// <summary>Way Sam faces during the suction on a level 2 (0 = +Z, toward the floating weather past the dais).</summary>
             public float SuctionSpotYaw = 180f;
+            /// <summary>
+            /// World-space box around the walkable route (start pad, checkpoints, finish). The kill slab is
+            /// centred on it and sized to cover it, so a merged two-level course stays over the hazard.
+            /// </summary>
+            public Bounds CourseBounds = new Bounds(Vector3.zero, Vector3.zero);
+
+            /// <summary>Recomputes <see cref="CourseBounds"/> from the start pad (origin), the checkpoints and the finish.</summary>
+            public void RecomputeCourseBounds()
+            {
+                var b = new Bounds(Vector3.zero, Vector3.zero);
+                foreach (Checkpoint cp in Checkpoints)
+                {
+                    if (cp != null) b.Encapsulate(cp.transform.position);
+                }
+                if (Finish != null) b.Encapsulate(FinishTop);
+                CourseBounds = b;
+            }
         }
 
         /// <summary>Per-build state shared by the helpers.</summary>
@@ -96,18 +113,8 @@ namespace WeatherForSale.EditorTools
             {
                 if (inputs.Root == null) throw new ArgumentException("Inputs.Root is missing.");
                 var ctx = new Context(mapId, level, inputs);
-                if (mapId == "Rainforest" && level == 1) BuildRainforest1(ctx);
-                else if (mapId == "Rainforest" && level == 2) BuildRainforest2(ctx);
-                else if (mapId == "Valley" && level == 1) BuildValley1(ctx);
-                else if (mapId == "Valley" && level == 2) BuildValley2(ctx);
-                else if (mapId == "Desert" && level == 1) BuildDesert1(ctx);
-                else if (mapId == "Desert" && level == 2) BuildDesert2(ctx);
-                else if (mapId == "Glacier" && level == 1) BuildGlacier1(ctx);
-                else if (mapId == "Glacier" && level == 2) BuildGlacier2(ctx);
-                else throw new ArgumentException("No layout for " + mapId + " level " + level + ".");
-
-                if (ctx.Result.Finish == null) throw new InvalidOperationException("The layout created no finish pad.");
-                if (ctx.Result.Checkpoints.Count == 0) throw new InvalidOperationException("The layout created no checkpoint.");
+                BuildLevel(ctx);
+                ctx.Result.RecomputeCourseBounds();
                 Debug.Log("[MapLevelBuilder] Built " + mapId + " level " + level + ": "
                           + ctx.Result.Checkpoints.Count + " checkpoint(s), " + ctx.Result.Hazards.Count + " trap(s), "
                           + ctx.Result.Shards.Count + " shard(s).");
@@ -118,6 +125,268 @@ namespace WeatherForSale.EditorTools
                 Debug.LogError("[MapLevelBuilder] FAILED to build " + mapId + " level " + level + ": " + e);
                 throw;
             }
+        }
+
+        /// <summary>Runs the per-map layout of <paramref name="ctx"/>'s map and level, then checks it made a finish and a checkpoint.</summary>
+        private static void BuildLevel(Context ctx)
+        {
+            string mapId = ctx.MapId;
+            int level = ctx.Level;
+            if (mapId == "Rainforest" && level == 1) BuildRainforest1(ctx);
+            else if (mapId == "Rainforest" && level == 2) BuildRainforest2(ctx);
+            else if (mapId == "Valley" && level == 1) BuildValley1(ctx);
+            else if (mapId == "Valley" && level == 2) BuildValley2(ctx);
+            else if (mapId == "Desert" && level == 1) BuildDesert1(ctx);
+            else if (mapId == "Desert" && level == 2) BuildDesert2(ctx);
+            else if (mapId == "Glacier" && level == 1) BuildGlacier1(ctx);
+            else if (mapId == "Glacier" && level == 2) BuildGlacier2(ctx);
+            else throw new ArgumentException("No layout for " + mapId + " level " + level + ".");
+
+            if (ctx.Result.Finish == null) throw new InvalidOperationException("Level " + level + " created no finish pad.");
+            if (ctx.Result.Checkpoints.Count == 0) throw new InvalidOperationException("Level " + level + " created no checkpoint.");
+        }
+
+        // ------------------------------------------------------------------ merged map (level 1 + level 2 in one scene)
+
+        // Join between level 1's finish and level 2's start (metres). Level 2 is moved along X/Z only, so its
+        // water / sand / scenery stays at the climate's height; a staircase walks down from level 1's (higher)
+        // finish to level 2's start pad.
+        private const float ConnectorMaxStepRise = 0.5f;  // drop per step (looks only: a hidden ramp is what is walked on)
+        private const float ConnectorRampAngleDeg = 33f;  // stair pitch; under the controller's 50° slope limit, so walkable both ways
+        private const float ConnectorWidth = 4f;          // each step along X
+        private const float ConnectorRampThickness = 0.6f; // hidden walk-on ramp collider
+        private const float ConnectorEndGap = 0f;         // stairs end flush on level 2's start pad (no jump)
+        private const float MergedStartPadSize = 6f;      // level 2's start pad (same as ObbyTestSceneBuilder's StartPad)
+        private const float MergedStartPadTopY = 0f;      // level 2's start pad top, level-2 local
+        /// <summary>Drop scenery that falls on the other level's side of the join (bands overlap after the offset).</summary>
+        private const bool CullSceneryAcrossJoin = true;
+
+        /// <summary>
+        /// Both levels lay the same big flat ground sheet (Desert quicksand: one mesh, -10 to 130 m) under their
+        /// course; after level 2 is moved forward the two sheets overlap at the same height and flicker
+        /// (z-fighting). Level 2's sheet is slid along +Z so it starts exactly where level 1's ends.
+        /// </summary>
+        private static void AbutGroundSheets(Transform scenery1, Transform scenery2)
+        {
+            if (scenery1 == null || scenery2 == null) return;
+            foreach (MeshFilter sheet2 in scenery2.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (!IsGroundSheet(sheet2)) continue;
+                foreach (MeshFilter sheet1 in scenery1.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (!IsGroundSheet(sheet1) || sheet1.sharedMesh != sheet2.sharedMesh) continue;
+                    Bounds b1 = sheet1.GetComponent<Renderer>().bounds, b2 = sheet2.GetComponent<Renderer>().bounds;
+                    if (b2.min.z >= b1.max.z || b2.max.z <= b1.min.z) continue; // no overlap
+                    sheet2.transform.position += new Vector3(0f, 0f, b1.max.z - b2.min.z);
+                }
+            }
+        }
+
+        private static bool IsGroundSheet(MeshFilter f)
+        {
+            Renderer r = f.sharedMesh != null ? f.GetComponent<Renderer>() : null;
+            if (r == null) return false;
+            Vector3 size = r.bounds.size;
+            return size.x > 15f && size.z > 15f && size.y < 1f;
+        }
+
+        /// <summary>True when both levels of the map have a layout, so <see cref="BuildMerged"/> can build it.</summary>
+        internal static bool HasMergedLayout(string mapId)
+        {
+            return HasLayout(mapId, 1) && HasLayout(mapId, 2);
+        }
+
+        /// <summary>
+        /// Builds a map's level 1 and level 2 as ONE continuous course under <see cref="Inputs.Root"/>:
+        /// level 1 under "Level_L1" (the root's "StartPad" is moved in there), a walk-down "Connector", then
+        /// level 2 under "Level_L2", moved forward so its start pad sits just past level 1's finish. Level 1's
+        /// finish becomes a checkpoint, level 2's start pad is a checkpoint too, level 2's finish (the weather
+        /// dais) ends the course. Only level 2's Shard is kept (one Shard per map). Throws (after logging)
+        /// on failure. Implements: story-004 (one scene per map, one Shard per map).
+        /// </summary>
+        internal static Result BuildMerged(string mapId, Inputs inputs)
+        {
+            try
+            {
+                if (inputs.Root == null) throw new ArgumentException("Inputs.Root is missing.");
+
+                // --- level 1 (built at the origin, as before)
+                Transform root1 = NewLevelRoot("Level_L1", inputs.Root);
+                Transform startPad = inputs.Root.Find("StartPad");
+                if (startPad != null) startPad.SetParent(root1, true); // StartIsland looks for it under In.Root
+                Inputs in1 = inputs; in1.Root = root1;
+                var ctx1 = new Context(mapId, 1, in1);
+                BuildLevel(ctx1);
+
+                // --- level 2 (built at the origin too, moved afterwards), with its own start pad = a checkpoint
+                Transform root2 = NewLevelRoot("Level_L2", inputs.Root);
+                Inputs in2 = inputs; in2.Root = root2;
+                var ctx2 = new Context(mapId, 2, in2);
+                Checkpoint l2Start = ObbyTestSceneBuilder.CreateCheckpoint("StartPad",
+                    new ObbyTestSceneBuilder.PlatformSpec("StartPad", 0f, MergedStartPadTopY, 0f, MergedStartPadSize, MergedStartPadSize),
+                    inputs.CheckpointMaterial, root2);
+                BuildLevel(ctx2);
+                Renderer l2StartCloth = AddFlag(ctx2, "StartPad_L2_Flag",
+                    new Vector3(MergedStartPadSize * 0.5f - 0.5f, MergedStartPadTopY, 0f), inputs.CheckpointMaterial);
+                SetFields(l2Start, ("tintRenderer", l2StartCloth));
+
+                // --- level 1's finish no longer ends the run: it becomes a checkpoint (flag tints yellow -> green)
+                FinishTrigger l1Finish = ctx1.Result.Finish;
+                Transform l1Pad = l1Finish.transform.parent;
+                Vector3 l1Top = ctx1.Result.FinishTop;
+                float l1EdgeZ = l1Pad.position.z + l1Pad.lossyScale.z * 0.5f;
+                Checkpoint l1End = FinishToCheckpoint(ctx1, l1Finish, l1Pad);
+
+                // --- connector: steps down (or up) from level 1's finish height to level 2's start height
+                float bottomY = IslandBottomY(ctx1.Scenery, "FinishPad_Island", ctx1.Result.HazardTopY - 2f);
+                Transform connectorRoot = NewLevelRoot("Connector", inputs.Root);
+                Inputs inC = inputs; inC.Root = connectorRoot;
+                var ctxC = new Context(mapId, 1, inC)
+                {
+                    PadMaterial = ctx1.PadMaterial, PadColorSet = ctx1.PadColorSet, PadCapMaterial = ctx1.PadCapMaterial,
+                };
+                float drop = l1Top.y - MergedStartPadTopY;
+                // Steep stairs (short), walked on via one hidden ramp through every step's downhill top edge, so the
+                // steps never poke above it and the player walks up or down without jumping.
+                int steps = Mathf.Max(0, Mathf.CeilToInt(Mathf.Abs(drop) / ConnectorMaxStepRise - 0.0001f) - 1);
+                float runLength = Mathf.Abs(drop) / Mathf.Tan(ConnectorRampAngleDeg * Mathf.Deg2Rad);
+                float stepDepth = steps > 0 ? runLength / (steps + 1) : 0f;
+                for (int i = 1; i <= steps; i++)
+                {
+                    float top = l1Top.y - drop * i / (steps + 1);
+                    // drop > 0 (down): each step's far edge sits on the ramp; going up, its near edge does.
+                    float z = l1EdgeZ + stepDepth * (drop > 0f ? i - 0.5f : i + 0.5f);
+                    Slab(ctxC, "Connector_Step_" + i, l1Top.x, top, z, ConnectorWidth, stepDepth,
+                        inputs.PlatformMaterial, inputs.PlatformMaterial, bottomY);
+                }
+                if (steps > 0)
+                {
+                    float rampAngle = Mathf.Atan2(drop, runLength) * Mathf.Rad2Deg; // + = descending along +Z
+                    float slopeLength = Mathf.Sqrt(drop * drop + runLength * runLength);
+                    var surfaceMid = new Vector3(l1Top.x, (l1Top.y + MergedStartPadTopY) * 0.5f, l1EdgeZ + runLength * 0.5f);
+                    Vector3 normal = Quaternion.Euler(rampAngle, 0f, 0f) * Vector3.up;
+                    GameObject ramp = Prim(PrimitiveType.Cube, "Connector_WalkRamp", ctxC.Course,
+                        surfaceMid - normal * (ConnectorRampThickness * 0.5f),
+                        new Vector3(ConnectorWidth, ConnectorRampThickness, slopeLength + 0.2f),
+                        inputs.PlatformMaterial, new Vector3(rampAngle, 0f, 0f), keepCollider: true);
+                    ramp.GetComponent<MeshRenderer>().enabled = false;
+                }
+                float l2NearEdgeZ = l1EdgeZ + (steps > 0 ? runLength : 0f) + ConnectorEndGap;
+
+                // --- move level 2 into place (X/Z only; every piece is under root2, so it all moves together)
+                var offset = new Vector3(l1Top.x, 0f, l2NearEdgeZ + MergedStartPadSize * 0.5f);
+                root2.position = offset;
+
+                AbutGroundSheets(ctx1.Scenery, ctx2.Scenery);
+
+                int culled = 0;
+                if (CullSceneryAcrossJoin)
+                {
+                    float joinZ = (l1EdgeZ + l2NearEdgeZ) * 0.5f;
+                    culled += CullScenery(ctx1.Scenery, z => z > joinZ);
+                    culled += CullScenery(ctx2.Scenery, z => z < joinZ);
+                }
+
+                // --- one Shard per map: keep level 2's (the harder level); level 1's is removed
+                var keptShards = new List<ShardPickup>();
+                if (ctx2.Result.Shards.Count > 0)
+                {
+                    foreach (ShardPickup s in ctx1.Result.Shards)
+                    {
+                        if (s != null) Object.DestroyImmediate(s.gameObject);
+                    }
+                    keptShards.AddRange(ctx2.Result.Shards);
+                }
+                else
+                {
+                    Debug.LogWarning("[MapLevelBuilder] " + mapId + " level 2 placed no Shard; keeping level 1's.");
+                    keptShards.AddRange(ctx1.Result.Shards);
+                }
+                keptShards.RemoveAll(s => s == null);
+                if (keptShards.Count > 1)
+                {
+                    for (int i = 1; i < keptShards.Count; i++) Object.DestroyImmediate(keptShards[i].gameObject);
+                    keptShards.RemoveRange(1, keptShards.Count - 1);
+                    Debug.LogWarning("[MapLevelBuilder] " + mapId + ": more than one Shard placed; kept the first.");
+                }
+
+                // --- merged result
+                var merged = new Result();
+                merged.Checkpoints.AddRange(ctx1.Result.Checkpoints);
+                merged.Checkpoints.Add(l1End);
+                merged.Checkpoints.Add(l2Start);
+                merged.Checkpoints.AddRange(ctx2.Result.Checkpoints);
+                merged.Hazards.AddRange(ctx1.Result.Hazards);
+                merged.Hazards.AddRange(ctx2.Result.Hazards);
+                merged.Shards.AddRange(keptShards);
+                merged.Finish = ctx2.Result.Finish;
+                merged.FinishTop = ctx2.Result.FinishTop + offset;
+                merged.SuctionSpotYaw = ctx2.Result.SuctionSpotYaw;
+                merged.HazardTopY = Mathf.Min(ctx1.Result.HazardTopY, ctx2.Result.HazardTopY);
+                merged.RecomputeCourseBounds();
+
+                Debug.Log("[MapLevelBuilder] Built merged " + mapId + ": level 2 offset " + offset + ", " + steps
+                          + " connector step(s), " + merged.Checkpoints.Count + " checkpoint(s), " + merged.Hazards.Count
+                          + " trap(s), " + merged.Shards.Count + " shard(s), " + culled + " overlapping scenery piece(s) removed.");
+                return merged;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[MapLevelBuilder] FAILED to build merged " + mapId + ": " + e);
+                throw;
+            }
+        }
+
+        private static Transform NewLevelRoot(string name, Transform parent)
+        {
+            var t = new GameObject(name).transform;
+            t.SetParent(parent, false);
+            t.localPosition = Vector3.zero;
+            t.localRotation = Quaternion.identity;
+            t.localScale = Vector3.one;
+            return t;
+        }
+
+        /// <summary>Swaps a level-1 finish trigger for a checkpoint on the same pad; its flag cloth becomes the checkpoint tint.</summary>
+        private static Checkpoint FinishToCheckpoint(Context c, FinishTrigger finish, Transform pad)
+        {
+            GameObject trigger = finish.gameObject;
+            Object.DestroyImmediate(finish);
+            Checkpoint cp = trigger.AddComponent<Checkpoint>();
+            pad.name = "Checkpoint_L1End";
+            trigger.name = "Checkpoint_L1End_Trigger";
+            Transform cloth = c.Course.Find("Finish_Flag_Cloth");
+            Transform pole = c.Course.Find("Finish_Flag_Pole");
+            if (pole != null) pole.name = "Checkpoint_L1End_Flag_Pole";
+            if (cloth != null)
+            {
+                cloth.name = "Checkpoint_L1End_Flag_Cloth";
+                SetFields(cp, ("tintRenderer", cloth.GetComponent<Renderer>()));
+            }
+            return cp;
+        }
+
+        /// <summary>Bottom of a named grass island under <paramref name="scenery"/>, or <paramref name="fallback"/>.</summary>
+        private static float IslandBottomY(Transform scenery, string islandName, float fallback)
+        {
+            Transform island = scenery.Find(islandName);
+            if (island == null) return fallback;
+            Bounds b = RendererBounds(island.gameObject);
+            return b.size.y > 0.01f ? b.min.y : fallback;
+        }
+
+        /// <summary>Destroys the direct children of <paramref name="scenery"/> whose world centre Z matches <paramref name="drop"/>. Returns how many.</summary>
+        private static int CullScenery(Transform scenery, Func<float, bool> drop)
+        {
+            var doomed = new List<GameObject>();
+            foreach (Transform child in scenery)
+            {
+                Bounds b = RendererBounds(child.gameObject);
+                float z = b.size.sqrMagnitude > 0.0001f ? b.center.z : child.position.z;
+                if (drop(z)) doomed.Add(child.gameObject);
+            }
+            foreach (GameObject go in doomed) Object.DestroyImmediate(go);
+            return doomed.Count;
         }
 
         // ------------------------------------------------------------------ helpers
@@ -368,6 +637,10 @@ namespace WeatherForSale.EditorTools
                     case bool b: prop.boolValue = b; break;
                     case string s: prop.stringValue = s; break;
                     case Vector3 v: prop.vector3Value = v; break;
+                    case Vector3[] arr:
+                        prop.arraySize = arr.Length;
+                        for (int k = 0; k < arr.Length; k++) prop.GetArrayElementAtIndex(k).vector3Value = arr[k];
+                        break;
                     case Color col: prop.colorValue = col; break;
                     case Object o: prop.objectReferenceValue = o; break;
                     default:

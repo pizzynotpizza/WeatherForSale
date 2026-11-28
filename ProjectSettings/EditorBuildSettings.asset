@@ -12,29 +12,17 @@ EditorBuildSettings:
     path: Assets/Scenes/Obby_Test.unity
     guid: 37b1cc68ce55ad0428e41d34bd2320ae
   - enabled: 1
-    path: Assets/Scenes/Obby_Rainforest_1.unity
-    guid: d58761406ca504243b77c6e2c23ab63b
+    path: Assets/Scenes/Obby_Rainforest.unity
+    guid: e10270a6af5fedb47a4cc0cf6380bf5b
   - enabled: 1
-    path: Assets/Scenes/Obby_Valley_1.unity
-    guid: 63fcf82bcc6405c4eb17e5ba281ba9ee
+    path: Assets/Scenes/Obby_Valley.unity
+    guid: e5dcafce95dacf548b5478fe1c5201d3
   - enabled: 1
-    path: Assets/Scenes/Obby_Desert_1.unity
-    guid: 6b9617af6762c9c4288d983f00631136
+    path: Assets/Scenes/Obby_Desert.unity
+    guid: 017be605cf229c042926c85e99f4731d
   - enabled: 1
-    path: Assets/Scenes/Obby_Glacier_1.unity
-    guid: 9c93de1d6136e5a468f793145bc2e7c5
-  - enabled: 1
-    path: Assets/Scenes/Obby_Rainforest_2.unity
-    guid: 368aa3a833f971d4aa1ca1904c3994b4
-  - enabled: 1
-    path: Assets/Scenes/Obby_Valley_2.unity
-    guid: 7b3fe9c36f7e93d42b3e63aff6606455
-  - enabled: 1
-    path: Assets/Scenes/Obby_Desert_2.unity
-    guid: 536075cea5428e34ab9aea8c79b5d16b
-  - enabled: 1
-    path: Assets/Scenes/Obby_Glacier_2.unity
-    guid: 3cd0d39722d2e294485d077c175ea0ed
+    path: Assets/Scenes/Obby_Glacier.unity
+    guid: ad400ef24699eb34cba486abe8ce9550
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

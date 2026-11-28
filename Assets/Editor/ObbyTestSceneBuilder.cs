@@ -22,10 +22,10 @@ namespace WeatherForSale.EditorTools
     /// creates the <see cref="ObbyLevelConfig"/> asset if missing, saves Assets/Scenes/Obby_Test.unity
     /// and adds it to the Build Settings. Run from the menu or with
     /// <c>-executeMethod WeatherForSale.EditorTools.ObbyTestSceneBuilder.BuildFromCommandLine</c>.
-    /// The same layout is also built once per map (Obby_Rainforest_1, Obby_Valley_1, Obby_Desert_1,
-    /// Obby_Glacier_1), recoloured for the climate and with its own config copy, so each map on the
-    /// shop counter loads its own level. These are starter levels: story 004 replaces the layouts,
-    /// adds the second level, the PDF obstacles and the KayKit dressing.
+    /// Each map is built as ONE scene (Obby_Rainforest, Obby_Valley, Obby_Desert, Obby_Glacier): the
+    /// map's level 1 and level 2 layouts joined into one continuous course by
+    /// <see cref="MapLevelBuilder.BuildMerged"/>, ending at the weather dais and the in-place suction,
+    /// with one config per map (ObbyLevelConfig_&lt;Map&gt;.asset) and one Shard per map.
     /// Implements: story-001 (Files: Assets/Scenes/Obby_Test.unity); story-002 criterion 5.
     /// </summary>
     public static class ObbyTestSceneBuilder
@@ -65,8 +65,8 @@ namespace WeatherForSale.EditorTools
         /// <summary>Sam faces back along the course (-Z) during suction, so the front camera looks past the finish flag.</summary>
         private const float SuctionSpotYaw = 180f;
 
-        /// <summary>A new level-2 config starts at this fraction of the map's level-1 time limit (then tune in the asset).</summary>
-        private const float LevelTwoTimeFactor = 0.8f;
+        /// <summary>The kill slab reaches this far past each end of the course, metres.</summary>
+        private const float HazardMargin = 80f;
 
         /// <summary>Per-level look: scene, config and the climate colours.</summary>
         private struct ObbyTheme
@@ -76,9 +76,9 @@ namespace WeatherForSale.EditorTools
             /// <summary>Top of the hazard slab, metres. Deep (e.g. -60) reads as a bottomless chasm;
             /// the config kill height still respawns the player long before they reach it.</summary>
             public float HazardTopY;
-            /// <summary>1-based level of a map scene (0 = the standalone test level, not part of the loop).</summary>
+            /// <summary>1 for a map scene (the merged course is the map's one and last level); 0 = the standalone test level, not part of the loop.</summary>
             public int Level;
-            /// <summary>Mirror the layout left-right (level 2 reuses level 1's layout until story 004).</summary>
+            /// <summary>Mirror the starter stepping-stone layout left-right (only used when there is no real layout).</summary>
             public bool MirrorX;
             /// <summary>Config a new <see cref="ConfigPath"/> is copied from (null = the test level's).</summary>
             public string SourceConfigPath;
@@ -100,18 +100,20 @@ namespace WeatherForSale.EditorTools
             /// <summary>Map id in MapCatalog ("Rainforest" -> "rainforest").</summary>
             public string MapId => Id.ToLowerInvariant();
 
-            /// <summary>The same map's level 2: Obby_&lt;Map&gt;_2, mirrored layout, config copied from level 1 with a shorter time.</summary>
-            public ObbyTheme LevelTwo()
+            /// <summary>Scene name (no folder, no extension), as stored in MapCatalog.sceneName.</summary>
+            public string SceneName => System.IO.Path.GetFileNameWithoutExtension(ScenePath);
+
+            /// <summary>The retired per-level scenes of this map (Obby_&lt;Map&gt;_1 / _2): taken out of the Build Settings, left on disk.</summary>
+            public string[] RetiredLevelScenePaths => new[]
             {
-                ObbyTheme two = this;
-                two.Level = 2;
-                two.ScenePath = ScenePath.Replace("_1.unity", "_2.unity");
-                two.ConfigPath = ConfigPath.Replace("_1.asset", "_2.asset");
-                two.SourceConfigPath = ConfigPath;
-                two.MirrorX = true;
-                two.TimeFactor = LevelTwoTimeFactor;
-                return two;
-            }
+                "Assets/Scenes/Obby_" + Id + "_1.unity", "Assets/Scenes/Obby_" + Id + "_2.unity",
+            };
+
+            /// <summary>The retired per-level configs; a new merged config is copied from the first, with their time limits added up.</summary>
+            public string[] LevelPartConfigPaths => new[]
+            {
+                "Assets/Data/ObbyLevelConfig_" + Id + "_1.asset", "Assets/Data/ObbyLevelConfig_" + Id + "_2.asset",
+            };
         }
 
         private static readonly ObbyTheme TestTheme = new ObbyTheme("Test", "Assets/Scenes/Obby_Test.unity", ConfigPath, "Lava",
@@ -125,16 +127,16 @@ namespace WeatherForSale.EditorTools
         // grey cliffs above icy water.
         private static readonly ObbyTheme[] MapThemes =
         {
-            new ObbyTheme("Rainforest", "Assets/Scenes/Obby_Rainforest_1.unity", "Assets/Data/ObbyLevelConfig_Rainforest_1.asset", "River",
+            new ObbyTheme("Rainforest", "Assets/Scenes/Obby_Rainforest.unity", "Assets/Data/ObbyLevelConfig_Rainforest.asset", "River",
                 new Color(0.46f, 0.66f, 0.30f), new Color(0.44f, 0.48f, 0.50f), new Color(0.24f, 0.66f, 0.70f),
                 new Color(0.68f, 0.77f, 0.84f), new Color(0.58f, 0.64f, 0.66f), new Color(0.90f, 0.95f, 1.00f)),
-            new ObbyTheme("Valley", "Assets/Scenes/Obby_Valley_1.unity", "Assets/Data/ObbyLevelConfig_Valley_1.asset", "Chasm",
+            new ObbyTheme("Valley", "Assets/Scenes/Obby_Valley.unity", "Assets/Data/ObbyLevelConfig_Valley.asset", "Chasm",
                 new Color(0.88f, 0.52f, 0.30f), new Color(0.94f, 0.76f, 0.46f), new Color(0.80f, 0.78f, 0.88f),
                 new Color(0.45f, 0.72f, 0.98f), new Color(0.72f, 0.66f, 0.64f), new Color(1.00f, 0.95f, 0.86f), -60f),
-            new ObbyTheme("Desert", "Assets/Scenes/Obby_Desert_1.unity", "Assets/Data/ObbyLevelConfig_Desert_1.asset", "Quicksand",
+            new ObbyTheme("Desert", "Assets/Scenes/Obby_Desert.unity", "Assets/Data/ObbyLevelConfig_Desert.asset", "Quicksand",
                 new Color(0.96f, 0.80f, 0.46f), new Color(0.82f, 0.52f, 0.38f), new Color(0.80f, 0.56f, 0.26f),
                 new Color(0.45f, 0.72f, 0.98f), new Color(0.80f, 0.72f, 0.60f), new Color(1.00f, 0.95f, 0.80f)),
-            new ObbyTheme("Glacier", "Assets/Scenes/Obby_Glacier_1.unity", "Assets/Data/ObbyLevelConfig_Glacier_1.asset", "IceWater",
+            new ObbyTheme("Glacier", "Assets/Scenes/Obby_Glacier.unity", "Assets/Data/ObbyLevelConfig_Glacier.asset", "IceWater",
                 new Color(0.94f, 0.97f, 1.00f), new Color(0.56f, 0.62f, 0.70f), new Color(0.14f, 0.32f, 0.52f),
                 new Color(0.50f, 0.75f, 0.98f), new Color(0.72f, 0.78f, 0.88f), new Color(1.00f, 0.98f, 0.92f)),
         };
@@ -186,17 +188,49 @@ namespace WeatherForSale.EditorTools
         }
 
         /// <summary>
-        /// Builds both obby levels of every map (Obby_&lt;Map&gt;_1, then Obby_&lt;Map&gt;_2) with the
-        /// <see cref="WeatherForSale.Core.GameLoopController"/> wired in; each level 2 also gets the
-        /// in-place suction stage (<see cref="SuctionStageBuilder"/>). Also callable from batch mode.
-        /// New scenes are appended to the Build Settings (the Shop stays scene 0) and the retired
-        /// Suction scene is taken out of them.
+        /// Builds one obby scene per map (Obby_&lt;Map&gt;: level 1 and level 2 merged into one course)
+        /// with the <see cref="WeatherForSale.Core.GameLoopController"/> and the in-place suction stage
+        /// (<see cref="SuctionStageBuilder"/>) at the end. Also callable from batch mode. The scenes are
+        /// appended to the Build Settings (the Shop stays scene 0); the retired per-level scenes
+        /// (Obby_&lt;Map&gt;_1 / _2, left on disk) and the retired Suction scene are taken out of them.
+        /// MapCatalog scene names and GameLoopConfig.levelsPerMap (1) are brought in line.
         /// </summary>
         public static void BuildMaps()
         {
+            foreach (ObbyTheme theme in MapThemes)
+            {
+                foreach (string retired in theme.RetiredLevelScenePaths) RemoveFromBuildSettings(retired);
+            }
             foreach (ObbyTheme theme in MapThemes) Build(theme);
-            foreach (ObbyTheme theme in MapThemes) Build(theme.LevelTwo());
             RemoveFromBuildSettings(RetiredSuctionScenePath);
+            SyncLoopAssets();
+        }
+
+        /// <summary>Points every MapCatalog entry at its map's merged scene and sets one obby level per map.</summary>
+        private static void SyncLoopAssets()
+        {
+            MapCatalog catalog = AssetDatabase.LoadAssetAtPath<MapCatalog>(MapCatalogPath);
+            if (catalog != null && catalog.maps != null)
+            {
+                foreach (MapEntry entry in catalog.maps)
+                {
+                    if (entry == null) continue;
+                    foreach (ObbyTheme theme in MapThemes)
+                    {
+                        if (theme.MapId == entry.id) entry.sceneName = theme.SceneName;
+                    }
+                }
+                EditorUtility.SetDirty(catalog);
+            }
+            else
+            {
+                Debug.LogWarning("[ObbyTestSceneBuilder] " + MapCatalogPath + " not found; run Build Shop Scene, then Build Map Obby Scenes again.");
+            }
+
+            GameLoopConfig loopConfig = GetOrCreateAsset<GameLoopConfig>(LoopConfigPath);
+            loopConfig.levelsPerMap = 1; // the merged course is the map's only (and last) obby level
+            EditorUtility.SetDirty(loopConfig);
+            AssetDatabase.SaveAssets();
         }
 
         /// <summary>Batch-mode entry point for <see cref="BuildMaps"/> (<c>-executeMethod</c>). Exits non-zero on failure.</summary>
@@ -240,7 +274,8 @@ namespace WeatherForSale.EditorTools
             // otherwise the config and materials loaded before it become destroyed (null) objects.
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            ObbyLevelConfig config = GetOrCreateConfig(theme.ConfigPath, theme.SourceConfigPath, theme.TimeFactor);
+            ObbyLevelConfig config = GetOrCreateConfig(theme.ConfigPath, theme.SourceConfigPath, theme.TimeFactor,
+                theme.Level > 0 ? theme.LevelPartConfigPaths : null);
             float mirror = theme.MirrorX ? -1f : 1f;
 
             string prefix = theme.Id == TestTheme.Id ? "Obby_" : "Obby_" + theme.Id + "_";
@@ -269,21 +304,22 @@ namespace WeatherForSale.EditorTools
 
             GameObject startPlatform = CreatePlatform("StartPad", new PlatformSpec("StartPad", 0f, 0f, 0f, 6f, 6f), startMat, levelRoot.transform);
 
-            // Story 004: maps with a real layout (obstacles, scenery) are built by MapLevelBuilder; the
-            // others keep the starter stepping-stone layout below (level 2 = mirrored level 1) for now.
+            // Story 004: a map scene is the map's level 1 and level 2 merged into one course
+            // (MapLevelBuilder.BuildMerged); anything without a layout keeps the starter stepping stones below.
             MapLevelBuilder.Result layout = null;
-            if (MapLevelBuilder.HasLayout(theme.Id, theme.Level))
+            var layoutInputs = new MapLevelBuilder.Inputs
             {
-                layout = MapLevelBuilder.Build(theme.Id, theme.Level, new MapLevelBuilder.Inputs
-                {
-                    Root = levelRoot.transform,
-                    PlatformMaterial = platformMat,
-                    StartMaterial = startMat,
-                    CheckpointMaterial = checkpointMat,
-                    FinishMaterial = finishMat,
-                    WhiteMaterial = whiteMat,
-                });
-            }
+                Root = levelRoot.transform,
+                PlatformMaterial = platformMat,
+                StartMaterial = startMat,
+                CheckpointMaterial = checkpointMat,
+                FinishMaterial = finishMat,
+                WhiteMaterial = whiteMat,
+            };
+            if (theme.Level > 0 && MapLevelBuilder.HasMergedLayout(theme.Id))
+                layout = MapLevelBuilder.BuildMerged(theme.Id, layoutInputs);
+            else if (MapLevelBuilder.HasLayout(theme.Id, theme.Level))
+                layout = MapLevelBuilder.Build(theme.Id, theme.Level, layoutInputs);
 
             Checkpoint[] checkpoints;
             FinishTrigger finish;
@@ -318,9 +354,19 @@ namespace WeatherForSale.EditorTools
             GameObject lava = GameObject.CreatePrimitive(PrimitiveType.Cube);
             lava.name = theme.HazardName + "_KillVolume";
             lava.transform.SetParent(levelRoot.transform, false);
-            lava.transform.position = new Vector3(5f * mirror, hazardTopY - 5f, 25f);
             // A deep chasm floor must reach the horizon, or the sky shows below the platforms.
             float hazardSize = hazardTopY < -20f ? 700f : 200f;
+            if (layout != null)
+            {
+                // Centred on the (merged) course and big enough to reach well past both ends of it.
+                Bounds course = layout.CourseBounds;
+                lava.transform.position = new Vector3(course.center.x, hazardTopY - 5f, course.center.z);
+                hazardSize = Mathf.Max(hazardSize, Mathf.Max(course.size.x, course.size.z) + HazardMargin * 2f);
+            }
+            else
+            {
+                lava.transform.position = new Vector3(5f * mirror, hazardTopY - 5f, 25f);
+            }
             lava.transform.localScale = new Vector3(hazardSize, 10f, hazardSize);
             lava.GetComponent<MeshRenderer>().sharedMaterial = lavaMat;
             lava.GetComponent<BoxCollider>().isTrigger = true;
@@ -392,7 +438,7 @@ namespace WeatherForSale.EditorTools
             if (uiModule.actionsAsset == null) uiModule.AssignDefaultActions();
 
             bool inLoop = theme.Level > 0;
-            bool hasSuction = theme.Level >= 2; // the last level of a map ends with the in-place suction
+            bool hasSuction = inLoop; // a map scene is the map's whole course: it ends with the in-place suction
             ObbyUiRefs ui = BuildUi(manager, config, player, thirdPersonCamera, inLoop, hasSuction);
             Button completeButton = hasSuction ? null : ui.CompleteButton;
 
@@ -598,6 +644,21 @@ namespace WeatherForSale.EditorTools
             fallsText.rectTransform.sizeDelta = new Vector2(500f, 70f);
             fallsText.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2f, -2f);
 
+            // --- Glide control hint (bottom centre, only while gliding): a round key badge and a label per row
+            RectTransform glideHint = CreateRect("GlideHint", canvasGo.transform);
+            glideHint.anchorMin = glideHint.anchorMax = new Vector2(0.5f, 0f);
+            glideHint.pivot = new Vector2(0.5f, 0f);
+            glideHint.anchoredPosition = new Vector2(0f, 40f);
+            glideHint.sizeDelta = new Vector2(520f, 150f);
+            Text ascendKey = GlideHintRow(glideHint, "Ascend", font, knobSprite, 75f, out Text ascendLabel);
+            Text descendKey = GlideHintRow(glideHint, "Descend", font, knobSprite, 0f, out Text descendLabel);
+            GlideControlsHint hint = glideHint.gameObject.AddComponent<GlideControlsHint>();
+            var hintRoot = CreateRect("Rows", glideHint);
+            Stretch(hintRoot);
+            foreach (Transform row in new[] { ascendKey.transform.parent.parent, descendKey.transform.parent.parent }) row.SetParent(hintRoot, false);
+            SetRefs(hint, ("player", player), ("root", hintRoot.gameObject), ("ascendKey", ascendKey), ("ascendLabel", ascendLabel),
+                ("descendKey", descendKey), ("descendLabel", descendLabel));
+
             // --- Game Over panel
             RectTransform gameOver = CreatePanel("GameOverPanel", canvasGo.transform, panelSprite, new Color(0f, 0f, 0f, 0.78f));
             Text goTitle = CreateText("Title", gameOver, font, "Game Over", 120, TextAnchor.MiddleCenter, new Color(1f, 0.35f, 0.3f));
@@ -631,6 +692,47 @@ namespace WeatherForSale.EditorTools
                 CompleteButton = cButton,
                 HideDuringSuction = new[] { timerText.gameObject, fallsText.gameObject, pad.gameObject }, // no time limit while collecting
             };
+        }
+
+        /// <summary>
+        /// One glide hint row at <paramref name="y"/> (from the hint's bottom): a white round badge holding the key
+        /// (dark text) and a white outlined label to its right. Returns the key text; the label comes out.
+        /// </summary>
+        private static Text GlideHintRow(RectTransform hint, string name, Font font, Sprite circle, float y, out Text label)
+        {
+            RectTransform row = CreateRect(name + "Row", hint);
+            row.anchorMin = row.anchorMax = new Vector2(0.5f, 0f);
+            row.pivot = new Vector2(0.5f, 0f);
+            row.anchoredPosition = new Vector2(0f, y);
+            row.sizeDelta = new Vector2(520f, 66f);
+
+            RectTransform badge = CreateRect("Badge", row);
+            badge.anchorMin = badge.anchorMax = new Vector2(0f, 0.5f);
+            badge.pivot = new Vector2(0f, 0.5f);
+            badge.anchoredPosition = new Vector2(60f, 0f);
+            badge.sizeDelta = new Vector2(62f, 62f);
+            Image ring = badge.gameObject.AddComponent<Image>();
+            ring.sprite = circle;
+            ring.color = new Color(1f, 1f, 1f, 0.95f);
+            ring.raycastTarget = false;
+            Text key = CreateText("Key", badge, font, "", 34, TextAnchor.MiddleCenter, new Color(0.18f, 0.12f, 0.08f));
+            Stretch(key.rectTransform);
+            key.rectTransform.offsetMin = new Vector2(6f, 6f);
+            key.rectTransform.offsetMax = new Vector2(-6f, -6f);
+            key.fontStyle = FontStyle.Bold;
+            key.resizeTextMinSize = 12;
+            key.resizeTextMaxSize = 34;
+
+            label = CreateText("Label", row, font, "", 38, TextAnchor.MiddleLeft, Color.white);
+            label.rectTransform.anchorMin = label.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            label.rectTransform.pivot = new Vector2(0f, 0.5f);
+            label.rectTransform.anchoredPosition = new Vector2(136f, 0f);
+            label.rectTransform.sizeDelta = new Vector2(380f, 60f);
+            label.fontStyle = FontStyle.Bold;
+            Outline outline = label.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.12f, 0.08f, 0.05f, 0.9f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            return key;
         }
 
         private static RectTransform CreateRect(string name, Transform parent)
@@ -736,6 +838,8 @@ namespace WeatherForSale.EditorTools
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
+            sam.AddComponent<GlideHandsIK>(); // hands on the glider bar while gliding (needs the IK pass below)
+
             PlayerAnimator driver = playerGo.AddComponent<PlayerAnimator>();
             SetRefs(driver, ("player", player), ("animator", animator));
         }
@@ -811,6 +915,11 @@ namespace WeatherForSale.EditorTools
             land.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
             land.AddCondition(AnimatorConditionMode.Less, 0f, "VerticalSpeed");
 
+            // IK pass on the base layer: GlideHandsIK puts Sam's hands on the glider bar.
+            AnimatorControllerLayer[] layers = ac.layers;
+            layers[0].iKPass = true;
+            ac.layers = layers;
+
             EditorUtility.SetDirty(ac);
             AssetDatabase.SaveAssets();
             return ac;
@@ -842,10 +951,37 @@ namespace WeatherForSale.EditorTools
 
         // ------------------------------------------------------------------ assets / settings
 
-        private static ObbyLevelConfig GetOrCreateConfig(string path, string sourcePath, float timeFactor)
+        /// <summary>
+        /// Loads the config at <paramref name="path"/> (designer tuning is kept), or creates it. A merged map
+        /// config (<paramref name="mergeParts"/> = the map's old level 1 and level 2 configs) starts as a copy
+        /// of the first part with levelTimeSeconds = the sum of the parts' time limits.
+        /// </summary>
+        private static ObbyLevelConfig GetOrCreateConfig(string path, string sourcePath, float timeFactor, string[] mergeParts = null)
         {
             ObbyLevelConfig config = AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(path);
             if (config != null) return config; // keep designer tuning
+
+            if (mergeParts != null && mergeParts.Length > 0
+                && AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(mergeParts[0]) != null
+                && AssetDatabase.CopyAsset(mergeParts[0], path))
+            {
+                float total = 0f;
+                foreach (string part in mergeParts)
+                {
+                    ObbyLevelConfig partConfig = AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(part);
+                    if (partConfig != null) total += partConfig.levelTimeSeconds;
+                }
+                ObbyLevelConfig merged = AssetDatabase.LoadAssetAtPath<ObbyLevelConfig>(path);
+                if (merged != null && total > 0f)
+                {
+                    merged.levelTimeSeconds = total;
+                    EditorUtility.SetDirty(merged);
+                    AssetDatabase.SaveAssets();
+                }
+                Debug.Log("[ObbyTestSceneBuilder] Created " + path + " from " + string.Join(" + ", mergeParts)
+                          + " (levelTimeSeconds " + total + ").");
+                return merged;
+            }
 
             // A map's first config starts as a copy of the tuned test level's (time, camera, movement);
             // a level-2 config starts as a copy of its map's level 1 with a shorter time limit.

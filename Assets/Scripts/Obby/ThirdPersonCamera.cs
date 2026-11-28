@@ -47,6 +47,41 @@ namespace WeatherForSale.Obby
             yaw = yawDegrees;
         }
 
+        // Assisted follow (glide): the camera eases toward a fixed heading, pitch and distance.
+        private bool autoFollow;
+        private float autoFollowYaw;
+        private float autoFollowPitch;
+        private float autoFollowSharpness;
+        private float savedTargetDistance;
+
+        /// <summary>True while an assisted follow (<see cref="BeginAutoFollow"/>) is active.</summary>
+        public bool IsAutoFollowing => autoFollow;
+
+        /// <summary>
+        /// Starts an assisted follow (used while gliding): the camera eases its yaw and pitch toward the given
+        /// angles (degrees) at <paramref name="sharpness"/> per second and moves out to <paramref name="distance"/>
+        /// metres. Mouse / stick look still works and eases back. <see cref="EndAutoFollow"/> restores the zoom.
+        /// </summary>
+        public void BeginAutoFollow(float yawDegrees, float pitchDegrees, float distance, float sharpness)
+        {
+            if (config == null) return;
+            EnsureDistance();
+            if (!autoFollow) savedTargetDistance = targetDistance;
+            autoFollow = true;
+            autoFollowYaw = yawDegrees;
+            autoFollowPitch = pitchDegrees;
+            autoFollowSharpness = Mathf.Max(0.01f, sharpness);
+            targetDistance = Mathf.Max(0f, distance);
+        }
+
+        /// <summary>Ends the assisted follow and returns to the zoom used before it. Does nothing if none is active.</summary>
+        public void EndAutoFollow()
+        {
+            if (!autoFollow) return;
+            autoFollow = false;
+            targetDistance = savedTargetDistance;
+        }
+
         /// <summary>Adds a touch drag, in screen pixels, to the camera angles.</summary>
         public void AddTouchLook(Vector2 deltaPixels)
         {
@@ -125,6 +160,13 @@ namespace WeatherForSale.Obby
             if (pad != null)
             {
                 ApplyLook(pad.rightStick.ReadValue() * (config.gamepadLookSpeed * dt));
+            }
+
+            if (autoFollow)
+            {
+                float ease = 1f - Mathf.Exp(-autoFollowSharpness * dt);
+                yaw = Mathf.LerpAngle(yaw, autoFollowYaw, ease);
+                pitch = Mathf.Lerp(pitch, autoFollowPitch, ease);
             }
 
             // Follow horizontally with no lag: a lagging pivot changes the camera-to-player distance

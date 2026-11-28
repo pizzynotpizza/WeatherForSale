@@ -24,6 +24,7 @@ namespace WeatherForSale.Obby
         private float speedDamping = 12f;
 
         private float smoothedSpeed;
+        private GlideMode glide;
 
         private void OnEnable()
         {
@@ -38,6 +39,17 @@ namespace WeatherForSale.Obby
         private void Update()
         {
             if (player == null || animator == null) return;
+
+            // Gliding: hold the idle pose (no walk cycle); GlideHandsIK raises the arms and swings the legs.
+            if (glide == null) glide = player.GetComponent<GlideMode>(); // added on the first glide
+            if (glide != null && glide.IsGliding)
+            {
+                smoothedSpeed = 0f;
+                animator.SetFloat(SpeedId, 0f);
+                animator.SetBool(GroundedId, true);
+                animator.SetFloat(VerticalSpeedId, 0f);
+                return;
+            }
 
             Vector3 v = player.Velocity;
             float horizontal = new Vector2(v.x, v.z).magnitude / Mathf.Max(0.01f, player.MaxMoveSpeed);

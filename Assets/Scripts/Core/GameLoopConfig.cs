@@ -13,8 +13,8 @@ namespace WeatherForSale.Core
         [Tooltip("Shop scene loaded after the Complete screen's Next button.")]
         public string shopSceneName = "Shop";
 
-        [Tooltip("Obby levels per map. Passing the last one starts the in-place suction.")]
-        [Min(1)] public int levelsPerMap = 2;
+        [Tooltip("Obby scenes per map (1: since story 004 each map's two levels are one merged scene). Passing the last one starts the in-place suction.")]
+        [Min(1)] public int levelsPerMap = 1;
 
         [Tooltip("Obby scene name pattern. {0} = map display name (MapCatalog), {1} = level number (1-based).")]
         public string levelSceneFormat = "Obby_{0}_{1}";
